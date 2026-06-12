@@ -5,8 +5,15 @@ import { UploadCloud, Music, AlertCircle, FileAudio, Check, ArrowRight, RefreshC
 import AudioVisualizer from './components/AudioVisualizer';
 import XAIDashboard from './components/XAIDashboard';
 import DSPControls from './components/DSPControls';
+import VocalEQGuide from './components/VocalEQGuide';
 
 function App() {
+  const [eqSettings, setEqSettings] = useState({
+    lcFreq: 50,
+    hcFreq: 16000,
+    enabledModules: new Set(['CUT FILTER', 'DE-ESSER I', 'COMPRESSOR I', 'EQ I', 'SATURATOR'])
+  });
+
   const [file, setFile] = useState(null);
   const [originalAudioUrl, setOriginalAudioUrl] = useState(null);
   const [processedAudioUrl, setProcessedAudioUrl] = useState(null);
@@ -204,12 +211,18 @@ function App() {
           >
             <AudioVisualizer 
               originalAudioUrl={originalAudioUrl} 
-              processedAudioUrl={processedAudioUrl} 
+              processedAudioUrl={processedAudioUrl}
+              eqSettings={eqSettings}
             />
             
             <DSPControls />
 
             <XAIDashboard explanations={explanations} />
+            
+            <VocalEQGuide 
+              eqSettings={eqSettings}
+              onEqChange={setEqSettings}
+            />
             
             <div className="text-center mt-12">
               <button

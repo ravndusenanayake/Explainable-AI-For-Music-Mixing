@@ -3,9 +3,13 @@ import WaveSurfer from 'wavesurfer.js';
 import { Play, Pause, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const AudioVisualizer = ({ originalAudioUrl, processedAudioUrl }) => {
+const AudioVisualizer = ({ originalAudioUrl, processedAudioUrl, eqSettings }) => {
   const containerRef = useRef(null);
   const wavesurferRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const lcFilterRef = useRef(null);
+  const hcFilterRef = useRef(null);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBypass, setIsBypass] = useState(false); // true means play original
   const [isReady, setIsReady] = useState(false);
@@ -31,6 +35,35 @@ const AudioVisualizer = ({ originalAudioUrl, processedAudioUrl }) => {
 
     ws.on('ready', () => {
       setIsReady(true);
+      
+      // Setup Web Audio API routing once wavesurfer is ready and has created its media element
+      if (!audioCtxRef.current) {
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioCtxRef.current = audioCtx;
+          
+          const mediaElement = ws.getMediaElement();
+          const source = audioCtx.createMediaElementSource(mediaElement);
+          
+          const lcFilter = audioCtx.createBiquadFilter();
+          lcFilter.type = 'highpass';
+          lcFilter.Q.value = 0.7; // Standard Butterworth
+          
+          const hcFilter = audioCtx.createBiquadFilter();
+          hcFilter.type = 'lowpass';
+          hcFilter.Q.value = 0.7;
+          
+          lcFilterRef.current = lcFilter;
+          hcFilterRef.current = hcFilter;
+          
+          // Connect: Source -> LC -> HC -> Destination
+          source.connect(lcFilter);
+          lcFilter.connect(hcFilter);
+          hcFilter.connect(audioCtx.destination);
+        } catch (e) {
+          console.warn("AudioContext setup failed or already exists for this element", e);
+        }
+      }
     });
 
     ws.on('finish', () => {
@@ -39,8 +72,34 @@ const AudioVisualizer = ({ originalAudioUrl, processedAudioUrl }) => {
 
     return () => {
       ws.destroy();
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+        audioCtxRef.current.close();
+        audioCtxRef.current = null;
+      }
     };
   }, []);
+
+  // Sync EQ Settings to Web Audio Filters
+  useEffect(() => {
+    if (lcFilterRef.current && hcFilterRef.current && eqSettings) {
+      const isCutFilterEnabled = eqSettings.enabledModules?.has('CUT FILTER');
+      
+      // Smooth frequency transition using setTargetAtTime to avoid clicks
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+        const timeConstant = 0.1;
+        
+        if (isCutFilterEnabled) {
+          lcFilterRef.current.frequency.setTargetAtTime(eqSettings.lcFreq, ctx.currentTime, timeConstant);
+          hcFilterRef.current.frequency.setTargetAtTime(eqSettings.hcFreq, ctx.currentTime, timeConstant);
+        } else {
+          // Bypass by moving filters out of audible range
+          lcFilterRef.current.frequency.setTargetAtTime(10, ctx.currentTime, timeConstant);
+          hcFilterRef.current.frequency.setTargetAtTime(22000, ctx.currentTime, timeConstant);
+        }
+      }
+    }
+  }, [eqSettings]);
 
   // Load the appropriate audio when urls or bypass toggle change
   useEffect(() => {
@@ -67,6 +126,12 @@ const AudioVisualizer = ({ originalAudioUrl, processedAudioUrl }) => {
 
   const togglePlayPause = () => {
     if (!wavesurferRef.current) return;
+    
+    // Resume AudioContext if it was suspended (browser policy)
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+
     if (isPlaying) {
       wavesurferRef.current.pause();
     } else {
