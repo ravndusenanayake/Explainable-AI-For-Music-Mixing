@@ -24,7 +24,13 @@ const VocalEQGuide = ({ eqSettings, onEqChange }) => {
   // Internal UI states for other mock modules
   const [gateThreshold, setGateThreshold] = useState(30); // 0-100
   const [pitchSpeed, setPitchSpeed] = useState(60); // 0-100
-  const [genericAmount, setGenericAmount] = useState(50); // 0-100
+  const [deEsserAmount, setDeEsserAmount] = useState(50);
+  const [dynFilterDepth, setDynFilterDepth] = useState(50);
+  const [comp1Threshold, setComp1Threshold] = useState(30);
+  const [eq1Amount, setEq1Amount] = useState(50);
+  const [exciterAmount, setExciterAmount] = useState(50);
+  const [saturatorDrive, setSaturatorDrive] = useState(50);
+  const [comp2Threshold, setComp2Threshold] = useState(30);
 
   
   const containerRef = useRef(null);
@@ -124,20 +130,116 @@ const VocalEQGuide = ({ eqSettings, onEqChange }) => {
             }
           ]
         };
-      default:
+      case 'DE-ESSER I':
         return {
-          title: `${activeModule} Processing`,
-          icon: <Sparkles className="w-5 h-5 text-yellow-400" />,
+          title: 'De-Esser (Sibilance Control)',
+          icon: <Waves className="w-5 h-5 text-teal-400" />,
+          items: [
+            {
+              name: 'Reduction',
+              value: `${deEsserAmount.toFixed(0)}%`,
+              color: 'text-teal-400',
+              text: deEsserAmount < 30 ? 'Light reduction. Sharp "S" and "T" sounds might still be harsh.' :
+                    deEsserAmount <= 70 ? 'Optimal setting. Smooths out harsh sibilance without causing a lisp.' :
+                    'Warning: Too much reduction. Vocal might sound like it has a lisp.'
+            }
+          ]
+        };
+      case 'DYN FILTER I':
+        return {
+          title: 'Dynamic Filter',
+          icon: <Waves className="w-5 h-5 text-indigo-400" />,
+          items: [
+            {
+              name: 'Depth',
+              value: `${dynFilterDepth.toFixed(0)}%`,
+              color: 'text-indigo-400',
+              text: dynFilterDepth < 30 ? 'Subtle control. Occasional boomy or harsh resonances might pass through.' :
+                    dynFilterDepth <= 70 ? 'Good depth. Dynamically tames resonances only when they get too loud.' :
+                    'Aggressive depth. Might sound pumping or unnatural.'
+            }
+          ]
+        };
+      case 'COMPRESSOR I':
+        return {
+          title: 'Compressor I (Leveling)',
+          icon: <AudioLines className="w-5 h-5 text-orange-400" />,
+          items: [
+            {
+              name: 'Threshold',
+              value: `${comp1Threshold.toFixed(0)}%`,
+              color: 'text-orange-400',
+              text: comp1Threshold < 30 ? 'Low compression. Vocal dynamics remain mostly untouched.' :
+                    comp1Threshold <= 60 ? 'Optimal leveling. Catches peaks and evens out the performance.' :
+                    'Heavy compression. Sounds very in-your-face but might lose natural dynamics.'
+            }
+          ]
+        };
+      case 'EQ I':
+        return {
+          title: 'EQ I (Tonal Shaping)',
+          icon: <Sparkles className="w-5 h-5 text-cyan-400" />,
+          items: [
+            {
+              name: 'Intensity',
+              value: `${eq1Amount.toFixed(0)}%`,
+              color: 'text-cyan-400',
+              text: eq1Amount < 30 ? 'Subtle tonal shaping.' :
+                    eq1Amount <= 70 ? 'Noticeable EQ. Adds clarity and presence.' :
+                    'Heavy EQ. Ensure it doesn\'t sound artificial.'
+            }
+          ]
+        };
+      case 'EXCITER':
+        return {
+          title: 'Harmonic Exciter',
+          icon: <Sparkles className="w-5 h-5 text-fuchsia-400" />,
           items: [
             {
               name: 'Amount',
-              value: `${genericAmount.toFixed(0)}%`,
-              color: 'text-yellow-400',
-              text: genericAmount < 30 ? `Subtle ${activeModule.toLowerCase()} applied. Good for transparent mixing.` :
-                    genericAmount <= 70 ? `Noticeable ${activeModule.toLowerCase()} character. Adds standard polish and weight.` :
-                    `Aggressive ${activeModule.toLowerCase()}. Can sound over-processed if not careful.`
+              value: `${exciterAmount.toFixed(0)}%`,
+              color: 'text-fuchsia-400',
+              text: exciterAmount < 30 ? 'Subtle sparkle. Adds a little air.' :
+                    exciterAmount <= 70 ? 'Bright and forward. Helps vocal cut through dense mixes.' :
+                    'Warning: High amount can introduce harshness and fatigue.'
             }
           ]
+        };
+      case 'SATURATOR':
+        return {
+          title: 'Tape Saturator',
+          icon: <Waves className="w-5 h-5 text-red-400" />,
+          items: [
+            {
+              name: 'Drive',
+              value: `${saturatorDrive.toFixed(0)}%`,
+              color: 'text-red-400',
+              text: saturatorDrive < 30 ? 'Warm analog feel. Barely noticeable saturation.' :
+                    saturatorDrive <= 70 ? 'Rich harmonics. Adds thickness and presence.' :
+                    'Aggressive distortion. Can be used for a lo-fi or aggressive rock effect.'
+            }
+          ]
+        };
+      case 'COMPRESSOR II':
+        return {
+          title: 'Compressor II (Character/Glue)',
+          icon: <AudioLines className="w-5 h-5 text-amber-400" />,
+          items: [
+            {
+              name: 'Amount',
+              value: `${comp2Threshold.toFixed(0)}%`,
+              color: 'text-amber-400',
+              text: comp2Threshold < 30 ? 'Light glue. Minimal impact on tone.' :
+                    comp2Threshold <= 70 ? 'Adds weight and density. Great for a pop/rap vocal.' :
+                    'Heavy character compression. Pumps and breathes heavily.'
+            }
+          ]
+        };
+      default:
+        return {
+          title: 'Processing',
+          icon: <Sparkles className="w-5 h-5 text-yellow-400" />,
+          items: []
         };
     }
   };
@@ -215,21 +317,113 @@ const VocalEQGuide = ({ eqSettings, onEqChange }) => {
       );
     }
 
-    // Generic Graph for others
-    return (
-      <>
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-          <Sparkles className="w-32 h-32 text-yellow-400" />
-        </div>
-        <svg className="w-full h-full absolute inset-0 pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r={genericAmount / 2} fill="rgba(250,204,21,0.1)" stroke="rgba(250,204,21,0.5)" strokeWidth="1" />
-        </svg>
-        <motion.div drag="x" dragConstraints={containerRef} dragElastic={0} dragMomentum={false} onDrag={(e,i) => handleDragHorizontal(e,i,setGenericAmount)} className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center cursor-grab active:cursor-grabbing z-20" style={{ left: `${genericAmount}%`, x: '-50%' }}>
-          <div className="bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded mb-2 shadow-lg">Amount: {genericAmount.toFixed(0)}</div>
-          <div className="w-4 h-4 rounded-full bg-yellow-400 border-2 border-white shadow-[0_0_15px_rgba(250,204,21,0.8)] hover:scale-125 transition-transform"></div>
-        </motion.div>
-      </>
-    );
+    if (activeModule === 'DE-ESSER I') {
+      return (
+        <>
+          <svg className="w-full h-full absolute inset-0 pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+             <path d={`M 0,50 Q 25,50 40,50 Q 50,${50 + deEsserAmount/2} 60,50 Q 75,50 100,50`} fill="none" stroke="rgba(45,212,191,0.5)" strokeWidth="2" />
+             <rect x="40" y="50" width="20" height={deEsserAmount/2} fill="rgba(45,212,191,0.1)" />
+          </svg>
+          <motion.div drag="y" dragConstraints={containerRef} dragElastic={0} dragMomentum={false} onDrag={(e,i) => handleDragVertical(e,i,setDeEsserAmount)} className="absolute left-1/2 -translate-x-1/2 flex flex-row items-center cursor-grab active:cursor-grabbing z-20 gap-2" style={{ top: `${100 - deEsserAmount}%`, y: '-50%' }}>
+            <div className="w-4 h-4 rounded-full bg-teal-400 border-2 border-white shadow-[0_0_15px_rgba(45,212,191,0.8)] hover:scale-125 transition-transform"></div>
+            <div className="bg-teal-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">Reduce</div>
+          </motion.div>
+        </>
+      );
+    }
+
+    if (activeModule === 'DYN FILTER I') {
+       return (
+        <>
+          <svg className="w-full h-full absolute inset-0 pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+             <path d={`M 0,50 Q 25,50 50,${50 + dynFilterDepth/2} T 100,50`} fill="none" stroke="rgba(99,102,241,0.5)" strokeWidth="2" />
+             <path d={`M 0,50 Q 25,50 50,${50 - dynFilterDepth/2} T 100,50`} fill="none" stroke="rgba(99,102,241,0.2)" strokeWidth="1" strokeDasharray="2 2" />
+          </svg>
+          <motion.div drag="y" dragConstraints={containerRef} dragElastic={0} dragMomentum={false} onDrag={(e,i) => handleDragVertical(e,i,setDynFilterDepth)} className="absolute left-1/2 -translate-x-1/2 flex flex-row items-center cursor-grab active:cursor-grabbing z-20 gap-2" style={{ top: `${100 - dynFilterDepth}%`, y: '-50%' }}>
+            <div className="w-4 h-4 rounded-full bg-indigo-400 border-2 border-white shadow-[0_0_15px_rgba(99,102,241,0.8)] hover:scale-125 transition-transform"></div>
+            <div className="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">Depth</div>
+          </motion.div>
+        </>
+      );
+    }
+    
+    if (activeModule === 'COMPRESSOR I') {
+       return (
+        <>
+          <svg className="w-full h-full absolute inset-0 pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+             <path d={`M 0,100 L ${100 - comp1Threshold},${100 - comp1Threshold} L 100,${100 - comp1Threshold - (comp1Threshold/2)}`} fill="none" stroke="rgba(251,146,60,0.8)" strokeWidth="2" />
+             <path d={`M 0,100 L 100,0`} fill="none" stroke="rgba(251,146,60,0.2)" strokeWidth="1" strokeDasharray="2 2" />
+          </svg>
+          <motion.div drag="x" dragConstraints={containerRef} dragElastic={0} dragMomentum={false} onDrag={(e,i) => handleDragHorizontal(e,i,setComp1Threshold)} className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center cursor-grab active:cursor-grabbing z-20" style={{ left: `${comp1Threshold}%`, x: '-50%' }}>
+             <div className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded mb-2 shadow-lg">Thresh</div>
+             <div className="w-4 h-4 rounded-full bg-orange-400 border-2 border-white shadow-[0_0_15px_rgba(251,146,60,0.8)] hover:scale-125 transition-transform"></div>
+          </motion.div>
+        </>
+      );
+    }
+    
+    if (activeModule === 'EQ I') {
+       return (
+        <>
+          <svg className="w-full h-full absolute inset-0 pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+             <path d={`M 0,50 Q 25,${50 - eq1Amount/3} 50,50 T 100,${50 + eq1Amount/3}`} fill="none" stroke="rgba(34,211,238,0.8)" strokeWidth="2" />
+             <path d={`M 0,50 L 100,50`} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="2 2" />
+          </svg>
+          <motion.div drag="y" dragConstraints={containerRef} dragElastic={0} dragMomentum={false} onDrag={(e,i) => handleDragVertical(e,i,setEq1Amount)} className="absolute left-1/2 -translate-x-1/2 flex flex-row items-center cursor-grab active:cursor-grabbing z-20 gap-2" style={{ top: `${100 - eq1Amount}%`, y: '-50%' }}>
+            <div className="w-4 h-4 rounded-full bg-cyan-400 border-2 border-white shadow-[0_0_15px_rgba(34,211,238,0.8)] hover:scale-125 transition-transform"></div>
+            <div className="bg-cyan-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">Intens</div>
+          </motion.div>
+        </>
+      );
+    }
+    
+    if (activeModule === 'EXCITER') {
+       return (
+        <>
+          <svg className="w-full h-full absolute inset-0 pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+             <path d={`M 0,80 Q 50,80 100,${80 - exciterAmount/1.5}`} fill="none" stroke="rgba(232,121,249,0.8)" strokeWidth="2" />
+             {[...Array(5)].map((_, i) => (
+                <circle key={i} cx={40 + i*12} cy={80 - (exciterAmount/2) - (i*6)} r={exciterAmount/25 + 1} fill="rgba(232,121,249,0.4)" />
+             ))}
+          </svg>
+          <motion.div drag="x" dragConstraints={containerRef} dragElastic={0} dragMomentum={false} onDrag={(e,i) => handleDragHorizontal(e,i,setExciterAmount)} className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center cursor-grab active:cursor-grabbing z-20" style={{ left: `${exciterAmount}%`, x: '-50%' }}>
+             <div className="bg-fuchsia-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded mb-2 shadow-lg">Amt</div>
+             <div className="w-4 h-4 rounded-full bg-fuchsia-400 border-2 border-white shadow-[0_0_15px_rgba(232,121,249,0.8)] hover:scale-125 transition-transform"></div>
+          </motion.div>
+        </>
+      );
+    }
+    
+    if (activeModule === 'SATURATOR') {
+       return (
+        <>
+          <svg className="w-full h-full absolute inset-0 pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+             <path d={`M 0,50 Q 25,${50 - saturatorDrive/2} 50,50 T 100,50`} fill="none" stroke="rgba(248,113,113,0.8)" strokeWidth={1 + saturatorDrive/15} />
+          </svg>
+          <motion.div drag="x" dragConstraints={containerRef} dragElastic={0} dragMomentum={false} onDrag={(e,i) => handleDragHorizontal(e,i,setSaturatorDrive)} className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center cursor-grab active:cursor-grabbing z-20" style={{ left: `${saturatorDrive}%`, x: '-50%' }}>
+             <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded mb-2 shadow-lg">Drive</div>
+             <div className="w-4 h-4 rounded-full bg-red-400 border-2 border-white shadow-[0_0_15px_rgba(248,113,113,0.8)] hover:scale-125 transition-transform"></div>
+          </motion.div>
+        </>
+      );
+    }
+    
+    if (activeModule === 'COMPRESSOR II') {
+       return (
+        <>
+          <svg className="w-full h-full absolute inset-0 pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+             <path d={`M 0,100 L ${100 - comp2Threshold},${100 - comp2Threshold} L 100,${100 - comp2Threshold - (comp2Threshold/3)}`} fill="none" stroke="rgba(251,191,36,0.8)" strokeWidth="2" />
+             <path d={`M 0,100 L 100,0`} fill="none" stroke="rgba(251,191,36,0.2)" strokeWidth="1" strokeDasharray="2 2" />
+          </svg>
+          <motion.div drag="x" dragConstraints={containerRef} dragElastic={0} dragMomentum={false} onDrag={(e,i) => handleDragHorizontal(e,i,setComp2Threshold)} className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center cursor-grab active:cursor-grabbing z-20" style={{ left: `${comp2Threshold}%`, x: '-50%' }}>
+             <div className="bg-amber-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded mb-2 shadow-lg">Thresh</div>
+             <div className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-[0_0_15px_rgba(251,191,36,0.8)] hover:scale-125 transition-transform"></div>
+          </motion.div>
+        </>
+      );
+    }
+
+    return null;
   };
 
   const SidebarItem = ({ name }) => {
