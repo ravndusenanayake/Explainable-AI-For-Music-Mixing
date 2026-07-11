@@ -42,27 +42,7 @@ const Layout = () => {
                 }`
               }
             >
-              <LayoutDashboard className="w-4 h-4" /> Overview
-            </NavLink>
-            <NavLink
-              to="/dsp"
-              className={({ isActive }) =>
-                `flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                  isActive ? 'bg-blue-500/20 text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.15)] border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                }`
-              }
-            >
-              <SlidersHorizontal className="w-4 h-4" /> DSP Controls
-            </NavLink>
-            <NavLink
-              to="/vocal-eq"
-              className={({ isActive }) =>
-                `flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                  isActive ? 'bg-blue-500/20 text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.15)] border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                }`
-              }
-            >
-              <MicVocal className="w-4 h-4" /> Vocal EQ
+              <LayoutDashboard className="w-4 h-4" /> Dashboard
             </NavLink>
           </nav>
 

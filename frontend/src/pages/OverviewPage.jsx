@@ -2,10 +2,12 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import AudioVisualizer from '../components/AudioVisualizer';
 import XAIDashboard from '../components/XAIDashboard';
+import DSPControls from '../components/DSPControls';
+import VocalEQGuide from '../components/VocalEQGuide';
 import { useAudioContext } from '../context/AudioContext';
 
 const OverviewPage = () => {
-  const { originalAudioUrl, processedAudioUrl, eqSettings, explanations } = useAudioContext();
+  const { originalAudioUrl, processedAudioUrl, eqSettings, setEqSettings, explanations } = useAudioContext();
 
   return (
     <motion.div 
@@ -19,6 +21,15 @@ const OverviewPage = () => {
         processedAudioUrl={processedAudioUrl}
         eqSettings={eqSettings}
       />
+      
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <DSPControls />
+        <VocalEQGuide 
+          eqSettings={eqSettings}
+          onEqChange={setEqSettings}
+        />
+      </div>
+
       <XAIDashboard explanations={explanations} />
     </motion.div>
   );
