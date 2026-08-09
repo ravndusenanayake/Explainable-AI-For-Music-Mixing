@@ -10,17 +10,29 @@ export const AudioProvider = ({ children }) => {
     enabledModules: new Set(['CUT FILTER', 'DE-ESSER I', 'COMPRESSOR I', 'EQ I', 'SATURATOR'])
   });
 
-  // Multi-track state
-  const [vocalFile, setVocalFile] = useState(null);
-  const [instrumentalFile, setInstrumentalFile] = useState(null);
-  const [vocalAudioUrl, setVocalAudioUrl] = useState(null);
-  const [instrumentalAudioUrl, setInstrumentalAudioUrl] = useState(null);
-  const [processedAudioUrl, setProcessedAudioUrl] = useState(null);
+  // ==========================================
+  // NEW: ADVANCED DAW STATE
+  // ==========================================
+  
+  // Array of uploaded files: { id, file, url, name, type }
+  const [mediaPool, setMediaPool] = useState([]);
 
+  // Array of timeline tracks: { id, name, type, color, clips: [{ id, mediaId, offset }] }
+  const [tracks, setTracks] = useState([
+    { id: 't1', name: 'Lead Vocal', type: 'vocal', color: 'rose', clips: [] },
+    { id: 't2', name: 'Backing Vocal', type: 'vocal', color: 'pink', clips: [] },
+    { id: 't3', name: 'Main Instrumental', type: 'instrumental', color: 'cyan', clips: [] },
+    { id: 't4', name: 'Drums / Beat', type: 'instrumental', color: 'blue', clips: [] },
+  ]);
+
+  // Mixed Output State
+  const [processedAudioUrl, setProcessedAudioUrl] = useState(null);
+  
   // Analysis & Explanation state
   const [sections, setSections] = useState([]);
   const [globalSummary, setGlobalSummary] = useState(null);
   const [explanations, setExplanations] = useState([]);
+  const [automationData, setAutomationData] = useState({}); // Stores AI gain curves per track
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
@@ -30,77 +42,68 @@ export const AudioProvider = ({ children }) => {
   // Shared player ref for seek synchronization
   const playerSeekRef = useRef(null);
 
-  // Legacy single-file state (backward compat)
-  const [file, setFile] = useState(null);
-  const [originalAudioUrl, setOriginalAudioUrl] = useState(null);
-
-  const handleVocalChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setVocalFile(selectedFile);
-      setVocalAudioUrl(URL.createObjectURL(selectedFile));
-      setProcessedAudioUrl(null);
-      setSections([]);
-      setExplanations([]);
-      setError(null);
-    }
-  };
-
-  const handleInstrumentalChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setInstrumentalFile(selectedFile);
-      setInstrumentalAudioUrl(URL.createObjectURL(selectedFile));
-      setProcessedAudioUrl(null);
-      setSections([]);
-      setExplanations([]);
-      setError(null);
-    }
-  };
-
-  // Legacy single-file handler
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setOriginalAudioUrl(URL.createObjectURL(selectedFile));
-      setProcessedAudioUrl(null);
-      setExplanations([]);
-      setError(null);
-    }
+  // Helper: Add file to media pool
+  const addMediaToPool = (file) => {
+    const newMedia = {
+      id: `media_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      file,
+      url: URL.createObjectURL(file),
+      name: file.name,
+      type: file.name.toLowerCase().includes('vocal') ? 'vocal' : 'instrumental'
+    };
+    setMediaPool(prev => [...prev, newMedia]);
+    return newMedia;
   };
 
   const resetContext = () => {
-    setVocalFile(null);
-    setInstrumentalFile(null);
-    setVocalAudioUrl(null);
-    setInstrumentalAudioUrl(null);
+    setMediaPool([]);
+    setTracks(tracks.map(t => ({ ...t, clips: [] })));
     setProcessedAudioUrl(null);
     setSections([]);
     setGlobalSummary(null);
     setExplanations([]);
+    setAutomationData({});
     setError(null);
-    setFile(null);
-    setOriginalAudioUrl(null);
     setLoadingStage('');
   };
 
   /**
-   * Multi-track mix: POST both vocal & instrumental to /api/mix
+   * Advanced Multi-track mix: POST timeline layout and files to /api/mix
    */
   const handleMix = async () => {
-    if (!vocalFile || !instrumentalFile) return false;
+    // Check if there are any clips in any track
+    const hasClips = tracks.some(t => t.clips.length > 0);
+    if (!hasClips) {
+      setError("Please add at least one clip to the timeline.");
+      return false;
+    }
 
     setIsLoading(true);
     setError(null);
-    setLoadingStage('Uploading tracks...');
+    setLoadingStage('Preparing timeline data...');
 
     const formData = new FormData();
-    formData.append('vocal', vocalFile);
-    formData.append('instrumental', instrumentalFile);
+    const usedMediaIds = new Set();
+    
+    // Find all media files used in the timeline
+    tracks.forEach(t => {
+      t.clips.forEach(c => usedMediaIds.add(c.mediaId));
+    });
+
+    // Append files, using mediaId as the filename so the backend can map it
+    usedMediaIds.forEach(id => {
+      const media = mediaPool.find(m => m.id === id);
+      if (media) {
+        // We set the filename in formData to the mediaId to match it up later
+        formData.append('files', media.file, media.id);
+      }
+    });
+
+    // Append the JSON description of the timeline
+    formData.append('timelineState', JSON.stringify({ tracks }));
 
     try {
-      setLoadingStage('Analyzing audio segments...');
+      setLoadingStage('Uploading stems & layout...');
       
       const response = await axios.post('http://localhost:5000/api/mix', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -109,9 +112,9 @@ export const AudioProvider = ({ children }) => {
         onUploadProgress: (progressEvent) => {
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           if (percent < 100) {
-            setLoadingStage(`Uploading tracks... ${percent}%`);
+            setLoadingStage(`Uploading data... ${percent}%`);
           } else {
-            setLoadingStage('AI is analyzing and mixing...');
+            setLoadingStage('AI is analyzing and mixing... This may take a moment.');
           }
         },
       });
@@ -120,25 +123,13 @@ export const AudioProvider = ({ children }) => {
 
       setLoadingStage('Rendering results...');
 
-      // Set processed audio
       if (data.processed_audio_base64) {
         setProcessedAudioUrl(data.processed_audio_base64);
       }
-
-      // Set sections (bar-by-bar data)
-      if (data.sections) {
-        setSections(data.sections);
-      }
-
-      // Set global summary
-      if (data.globalSummary) {
-        setGlobalSummary(data.globalSummary);
-      }
-
-      // Set explanations for XAI dashboard
-      if (data.explanations && data.explanations.length > 0) {
-        setExplanations(data.explanations);
-      }
+      if (data.sections) setSections(data.sections);
+      if (data.globalSummary) setGlobalSummary(data.globalSummary);
+      if (data.explanations) setExplanations(data.explanations);
+      if (data.automationData) setAutomationData(data.automationData);
 
       return true;
     } catch (err) {
@@ -151,74 +142,28 @@ export const AudioProvider = ({ children }) => {
     }
   };
 
-  /**
-   * Legacy single-track upload
-   */
-  const handleUpload = async () => {
-    if (!file) return false;
-
-    setIsLoading(true);
-    setError(null);
-
-    const formData = new FormData();
-    formData.append('audio', file);
-
-    try {
-      const response = await axios.post('http://localhost:5000/api/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      const { data } = response;
-
-      if (data.explanations) {
-        setExplanations(data.explanations);
-      } else {
-        setExplanations([
-          { action: "Applied Low-Cut Filter at 40Hz", reason: "Excessive sub-frequency rumble detected below 40Hz.", tip: "Always use high-pass filters on non-bass instruments." },
-          { action: "Dynamic EQ on Vocal Range", reason: "Harsh resonances found around 3kHz.", tip: "A dynamic EQ cuts narrow Q bands only when they become piercing." },
-          { action: "RMS Leveling & True Peak Limiting", reason: "Track had highly dynamic peaks.", tip: "Set your True Peak Limiter ceiling to -1.0dBTP for streaming." }
-        ]);
-      }
-
-      if (data.processed_audio_url || data.processed_audio_base64) {
-        setProcessedAudioUrl(data.processed_audio_url || data.processed_audio_base64);
-      } else {
-        setProcessedAudioUrl(URL.createObjectURL(file));
-      }
-      return true;
-    } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.error || err.message || 'An unexpected error occurred during processing.');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const value = {
     eqSettings, setEqSettings,
-    // Multi-track
-    vocalFile, setVocalFile,
-    instrumentalFile, setInstrumentalFile,
-    vocalAudioUrl, setVocalAudioUrl,
-    instrumentalAudioUrl, setInstrumentalAudioUrl,
+    
+    // DAW State
+    mediaPool, setMediaPool, addMediaToPool,
+    tracks, setTracks,
+    
+    // Output
+    processedAudioUrl, setProcessedAudioUrl,
     sections, setSections,
     globalSummary, setGlobalSummary,
-    handleVocalChange,
-    handleInstrumentalChange,
-    handleMix,
-    // Legacy
-    file, setFile,
-    originalAudioUrl, setOriginalAudioUrl,
-    handleFileChange,
-    handleUpload,
-    // Shared
-    processedAudioUrl, setProcessedAudioUrl,
     explanations, setExplanations,
+    automationData, setAutomationData,
+    
+    // Actions
+    handleMix,
+    resetContext,
+    
+    // UI State
     isLoading, setIsLoading,
     loadingStage,
     error, setError,
-    resetContext,
     playerSeekRef,
   };
 

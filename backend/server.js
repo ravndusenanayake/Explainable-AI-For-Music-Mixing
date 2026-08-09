@@ -16,36 +16,40 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 }, // 100MB per file
 });
 
+// Helper function to handle async route errors
+const asyncHandler = fn => (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+};
+
 // ============================================================
-// NEW: Multi-track mix endpoint
-// Accepts two files: 'vocal' and 'instrumental'
+// NEW: Advanced DAW Mix Endpoint
 // ============================================================
-app.post('/api/mix', upload.fields([
-  { name: 'vocal', maxCount: 1 },
-  { name: 'instrumental', maxCount: 1 },
-]), async (req, res) => {
-  try {
-    // Validate both files are present
-    if (!req.files || !req.files.vocal || !req.files.instrumental) {
-      const missing = [];
-      if (!req.files?.vocal) missing.push('vocal');
-      if (!req.files?.instrumental) missing.push('instrumental');
-      return res.status(400).json({
-        error: `Missing required track(s): ${missing.join(', ')}. Please upload both a vocal and an instrumental track.`,
-      });
+app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
+    console.log('\n--- New DAW Mix Request ---');
+    
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No files were uploaded.' });
     }
 
-    const vocalFile = req.files.vocal[0];
-    const instrumentalFile = req.files.instrumental[0];
+    if (!req.body.timelineState) {
+        return res.status(400).json({ error: 'No timelineState provided.' });
+    }
 
-    console.log(`[Node] Received vocal: ${vocalFile.originalname} (${(vocalFile.size / 1024 / 1024).toFixed(2)} MB)`);
-    console.log(`[Node] Received instrumental: ${instrumentalFile.originalname} (${(instrumentalFile.size / 1024 / 1024).toFixed(2)} MB)`);
-    console.log('[Node] Starting mix engine...');
+    let timelineState;
+    try {
+        timelineState = JSON.parse(req.body.timelineState);
+    } catch (e) {
+        return res.status(400).json({ error: 'Invalid timelineState JSON.' });
+    }
+
+    console.log(`[Node] Received ${req.files.length} files. Timeline has ${timelineState.tracks.length} tracks.`);
+    console.log('[Node] Starting advanced mix engine...');
 
     const startTime = Date.now();
-
-    // Run the mixing engine
-    const result = await mixTracks(vocalFile.buffer, instrumentalFile.buffer);
+    
+    // Run the advanced mixing engine
+    // We pass the array of Multer files, and the parsed JSON state
+    const result = await mixTracks(req.files, timelineState);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`[Node] Mix complete in ${elapsed}s`);
@@ -58,16 +62,9 @@ app.post('/api/mix', upload.fields([
       sections: result.sections,
       globalSummary: result.globalSummary,
       explanations: result.explanations,
+      automationData: result.automationData
     });
-
-  } catch (error) {
-    console.error('[Node] Error in /api/mix:', error.message);
-    return res.status(500).json({
-      error: 'Failed to process and mix tracks.',
-      details: error.message,
-    });
-  }
-});
+}));
 
 // ============================================================
 // LEGACY: Single-track upload endpoint (kept for compatibility)

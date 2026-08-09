@@ -1,5 +1,9 @@
 const WavDecoder = require('wav-decoder');
 const WavEncoder = require('wav-encoder');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegPath);
+const { Readable, Writable } = require('stream');
 
 // ============================================================
 // CONSTANTS
@@ -332,46 +336,130 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
 // ============================================================
 
 /**
- * Main entry point: takes two WAV buffers, analyzes, mixes, and returns results.
- * @param {Buffer} vocalBuffer - Raw WAV file buffer for the vocal track
- * @param {Buffer} instrumentalBuffer - Raw WAV file buffer for the instrumental track
- * @returns {Object} { mixedAudioBuffer, sections, globalSummary, explanations }
+ * Convert any audio buffer to WAV using FFmpeg
  */
-async function mixTracks(vocalBuffer, instrumentalBuffer) {
-  console.log('[MixEngine] Starting audio analysis and mixing...');
+async function convertToWavBuffer(inputBuffer) {
+  return new Promise((resolve, reject) => {
+    const inputStream = new Readable();
+    inputStream.push(inputBuffer);
+    inputStream.push(null);
 
-  // ── Step 1: Decode WAV files ──
-  let vocalAudio, instrumentalAudio;
-  try {
-    vocalAudio = await WavDecoder.decode(vocalBuffer);
-    instrumentalAudio = await WavDecoder.decode(instrumentalBuffer);
-  } catch (err) {
-    throw new Error(`Failed to decode WAV files. Make sure both files are valid WAV format. Error: ${err.message}`);
+    const chunks = [];
+    const outputStream = new Writable({
+      write(chunk, encoding, callback) {
+        chunks.push(chunk);
+        callback();
+      }
+    });
+
+    ffmpeg(inputStream)
+      .format('wav')
+      .audioCodec('pcm_s16le')
+      .audioFrequency(44100)
+      .audioChannels(1)
+      .on('error', (err) => reject(new Error('FFmpeg conversion failed: ' + err.message)))
+      .on('end', () => resolve(Buffer.concat(chunks)))
+      .pipe(outputStream, { end: true });
+  });
+}
+
+function padAudioWithSilence(channelData, offsetSeconds, sampleRate) {
+  if (offsetSeconds <= 0) return channelData;
+  const paddingSamples = Math.floor(offsetSeconds * sampleRate);
+  
+  return channelData.map(channel => {
+    const newChannel = new Float32Array(channel.length + paddingSamples);
+    newChannel.set(channel, paddingSamples); // Starts at paddingSamples index, leaving zeroes before
+    return newChannel;
+  });
+}
+
+/**
+ * Main entry point: takes timeline layout and files, assembles them, analyzes, mixes, and returns results.
+ * @param {Array} files - Array of multer files
+ * @param {Object} timelineState - JSON timeline object describing tracks and clips
+ * @returns {Object} { mixedAudioBuffer, sections, globalSummary, explanations, automationData }
+ */
+async function mixTracks(files, timelineState) {
+  console.log(`[MixEngine] Starting advanced DAW summing & mixing.`);
+
+  // ── Step 1: Decode all clips ──
+  const decodedClips = {}; // mediaId -> { channelData, sampleRate, durationSec }
+  
+  for (const file of files) {
+    console.log(`[MixEngine] Decoding media file: ${file.originalname}`);
+    const wav = await convertToWavBuffer(file.buffer);
+    const audio = await WavDecoder.decode(wav);
+    
+    decodedClips[file.originalname] = {
+      channelData: audio.channelData,
+      sampleRate: audio.sampleRate,
+      numberOfChannels: audio.numberOfChannels,
+      durationSec: audio.channelData[0].length / audio.sampleRate
+    };
   }
 
-  const vocalSampleRate = vocalAudio.sampleRate;
-  const instSampleRate = instrumentalAudio.sampleRate;
+  // ── Step 2: Determine total timeline duration ──
+  let maxDurationSec = 0;
+  for (const track of timelineState.tracks) {
+    for (const clip of track.clips) {
+      const media = decodedClips[clip.mediaId];
+      if (media) {
+        const endSec = clip.offset + media.durationSec;
+        if (endSec > maxDurationSec) maxDurationSec = endSec;
+      }
+    }
+  }
+  
+  if (maxDurationSec === 0) {
+      throw new Error("Timeline is empty or no valid audio files were found.");
+  }
 
-  console.log(`[MixEngine] Vocal: ${vocalAudio.numberOfChannels}ch, ${vocalSampleRate}Hz, ${vocalAudio.channelData[0].length} samples`);
-  console.log(`[MixEngine] Instrumental: ${instrumentalAudio.numberOfChannels}ch, ${instSampleRate}Hz, ${instrumentalAudio.channelData[0].length} samples`);
+  // ── Step 3: Assemble Track Sums (Vocal vs Instrumental) ──
+  const outputSampleRate = 44100;
+  const maxSamples = Math.ceil(maxDurationSec * outputSampleRate);
+  const vocalSamples = new Float32Array(maxSamples);
+  const instSamples = new Float32Array(maxSamples);
 
-  // Use the higher sample rate for output
-  const outputSampleRate = Math.max(vocalSampleRate, instSampleRate);
+  for (const track of timelineState.tracks) {
+    const isVocal = track.type === 'vocal';
+    const targetBuffer = isVocal ? vocalSamples : instSamples;
 
-  // Get mono representations for analysis (use first channel)
-  const vocalSamples = vocalAudio.channelData[0];
-  const instSamples = instrumentalAudio.channelData[0];
+    for (const clip of track.clips) {
+      const media = decodedClips[clip.mediaId];
+      if (!media) continue;
 
-  // Determine output length (use the longer track)
-  const maxLength = Math.max(vocalSamples.length, instSamples.length);
+      const clipSamples = media.channelData[0]; // mono
+
+      // Calculate slice boundaries
+      const trimStartSec = clip.trimStartSec || 0;
+      const trimEndSec = clip.trimEndSec || media.durationSec;
+      
+      const startSampleIndex = Math.floor(trimStartSec * outputSampleRate);
+      const endSampleIndex = Math.min(clipSamples.length, Math.floor(trimEndSec * outputSampleRate));
+
+      let writeOffset = Math.floor(clip.offset * outputSampleRate);
+
+      // Add (sum) clip audio to the target buffer
+      for (let i = startSampleIndex; i < endSampleIndex; i++) {
+        if (writeOffset < maxSamples) {
+          targetBuffer[writeOffset] += clipSamples[i];
+        }
+        writeOffset++;
+      }
+    }
+  }
+
+  const maxLength = maxSamples;
   const barSamples = Math.floor(BAR_DURATION_SECONDS * outputSampleRate);
   const numSections = Math.ceil(maxLength / barSamples);
 
-  console.log(`[MixEngine] Total duration: ${(maxLength / outputSampleRate).toFixed(1)}s, Sections: ${numSections}, Bar size: ${BAR_DURATION_SECONDS}s`);
+  console.log(`[MixEngine] Assembled timeline. Total duration: ${maxDurationSec.toFixed(1)}s, Sections: ${numSections}`);
 
-  // ── Step 2: Analyze each section and make mixing decisions ──
+  // ── Step 4: Analyze each section and make mixing decisions ──
   const sections = [];
   const allExplanations = [];
+  const automationData = { vocal: [], instrumental: [] };
 
   for (let i = 0; i < numSections; i++) {
     const start = i * barSamples;
@@ -423,13 +511,18 @@ async function mixTracks(vocalBuffer, instrumentalBuffer) {
         sectionType,
       });
     });
+    // Push automation data points
+    automationData.vocal.push({ time: parseFloat(startTime.toFixed(2)), gainDb: parseFloat(decisions.vocalGainDb.toFixed(1)) });
+    automationData.instrumental.push({ time: parseFloat(startTime.toFixed(2)), gainDb: parseFloat(decisions.instrumentalGainDb.toFixed(1)) });
+    
+    // Add end point for step automation curve
+    automationData.vocal.push({ time: parseFloat(endTime.toFixed(2)), gainDb: parseFloat(decisions.vocalGainDb.toFixed(1)) });
+    automationData.instrumental.push({ time: parseFloat(endTime.toFixed(2)), gainDb: parseFloat(decisions.instrumentalGainDb.toFixed(1)) });
   }
 
-  // ── Step 3: Mix the audio buffers ──
+  // ── Step 5: Mix the audio buffers ──
   console.log('[MixEngine] Mixing audio with calculated gains...');
 
-  const vocalChannels = vocalAudio.numberOfChannels;
-  const instChannels = instrumentalAudio.numberOfChannels;
   const outputChannels = 2; // Always output stereo
 
   const mixedChannelData = [];
@@ -440,43 +533,19 @@ async function mixTracks(vocalBuffer, instrumentalBuffer) {
   for (let i = 0; i < numSections; i++) {
     const start = i * barSamples;
     const end = Math.min(start + barSamples, maxLength);
-    const section = sections[i];
+    
+    const vocalGain = Math.pow(10, sections[i].mixing.vocalGainDb / 20);
+    const instGain = Math.pow(10, sections[i].mixing.instrumentalGainDb / 20);
 
-    const vocalGainLinear = Math.pow(10, section.mixing.vocalGainDb / 20);
-    const instGainLinear = Math.pow(10, section.mixing.instrumentalGainDb / 20);
+    for (let s = start; s < end; s++) {
+      // We only have Mono sums, so we copy them to both L and R channels
+      const v = vocalSamples[s] || 0;
+      const inst = instSamples[s] || 0;
 
-    for (let ch = 0; ch < outputChannels; ch++) {
-      const vocalCh = Math.min(ch, vocalChannels - 1);
-      const instCh = Math.min(ch, instChannels - 1);
-      const vocalData = vocalAudio.channelData[vocalCh];
-      const instData = instrumentalAudio.channelData[instCh];
+      const mixedSample = (v * vocalGain) + (inst * instGain);
 
-      for (let s = start; s < end; s++) {
-        const vSample = s < vocalData.length ? vocalData[s] * vocalGainLinear : 0;
-        const iSample = s < instData.length ? instData[s] * instGainLinear : 0;
-
-        // Sum and soft-clip to prevent digital clipping
-        let mixed = vSample + iSample;
-        // Soft clipper (tanh-style)
-        if (Math.abs(mixed) > 0.95) {
-          mixed = Math.tanh(mixed);
-        }
-
-        mixedChannelData[ch][s] = mixed;
-      }
-    }
-
-    // Apply crossfade at section boundaries (except first and last) to avoid clicks
-    if (i > 0) {
-      const fadeLength = Math.min(256, barSamples);
-      for (let ch = 0; ch < outputChannels; ch++) {
-        for (let f = 0; f < fadeLength; f++) {
-          const fadeIn = f / fadeLength;
-          // Blend with previous sample to smooth transition
-          // (simple linear crossfade at boundary)
-          mixedChannelData[ch][start + f] *= fadeIn + (1 - fadeIn) * 0.9;
-        }
-      }
+      mixedChannelData[0][s] = mixedSample; // L
+      mixedChannelData[1][s] = mixedSample; // R
     }
   }
 
@@ -542,6 +611,7 @@ async function mixTracks(vocalBuffer, instrumentalBuffer) {
     sections,
     globalSummary,
     explanations: allExplanations.slice(0, 20), // Top 20 for the XAI dashboard cards
+    automationData
   };
 }
 

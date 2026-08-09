@@ -6,6 +6,7 @@ import { Music } from 'lucide-react';
 
 // Lazy loading pages for fast initial load
 const UploadPage = lazy(() => import('./pages/UploadPage'));
+const EditorPage = lazy(() => import('./pages/EditorPage'));
 const OverviewPage = lazy(() => import('./pages/OverviewPage'));
 
 // Aesthetic Loading Spinner for Suspense fallback
@@ -29,6 +30,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<UploadPage />} />
+              <Route path="editor" element={<EditorPage />} />
               <Route path="dashboard" element={<OverviewPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
