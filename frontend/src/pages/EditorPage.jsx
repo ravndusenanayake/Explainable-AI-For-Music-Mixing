@@ -7,7 +7,7 @@ import {
   Play, Pause, Waves, ArrowRight, Plus, Upload, Music, 
   Volume2, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard, 
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
-  PlaySquare
+  PlaySquare, Repeat, Settings2
 } from 'lucide-react';
 
 // ==========================================
@@ -29,7 +29,7 @@ const formatTimeRuler = (sec) => {
 // ==========================================
 // COMPONENT: Clip
 // ==========================================
-const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime }) => {
+const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime, trackHeight }) => {
   const containerRef = useRef(null);
   const [duration, setDuration] = useState(0);
 
@@ -40,7 +40,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       container: containerRef.current,
       waveColor: trackColor === 'cyan' || trackColor === 'blue' ? 'rgba(0,200,255,0.6)' : 'rgba(255,120,150,0.6)',
       progressColor: trackColor === 'cyan' || trackColor === 'blue' ? 'rgba(0,220,255,0.9)' : 'rgba(255,150,180,0.9)',
-      height: 48,
+      height: trackHeight - 20, // Leave room for clip header
       normalize: true,
       interact: false,
       barWidth: 2,
@@ -59,7 +59,15 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       ws.destroy();
       URL.revokeObjectURL(url);
     };
-  }, [clip.file]);
+  }, [clip.file]); // Removed trackHeight from here so we don't reload clip on zoom
+
+  // Dynamic Height Update
+  useEffect(() => {
+    const ws = clipWsRefs?.current[clip.id];
+    if (ws && ws.setOptions) {
+      ws.setOptions({ height: trackHeight - 20 });
+    }
+  }, [trackHeight, clip.id, clipWsRefs]);
 
   const trimStart = clip.trimStartSec || 0;
   const trimEnd = clip.trimEndSec || duration;
@@ -130,20 +138,9 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
 // ==========================================
 // COMPONENT: Track
 // ==========================================
-const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime }) => {
+const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange }) => {
   const trackRef = useRef(null);
-  const [isMuted, setIsMuted] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
-
-  // Sync mute state to the clipWsRefs when isMuted changes
-  useEffect(() => {
-    track.clips.forEach(clip => {
-      const ws = clipWsRefs.current[clip.id];
-      if (ws) {
-        ws.setMuted(isMuted);
-      }
-    });
-  }, [isMuted, track.clips, clipWsRefs]);
 
   const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
   const handleDrop = (e) => {
@@ -170,23 +167,49 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
   };
 
   return (
-    <div className={`flex border-b border-[#2a2a2a] h-[72px] ${isMuted ? 'opacity-40' : ''}`}>
-      {/* Track Header - CapCut style - STICKY to the left edge of scroll container */}
-      <div className="w-[52px] flex-shrink-0 bg-[#1e1e1e] border-r border-[#2a2a2a] flex flex-col items-center justify-center gap-1 py-1 z-30 sticky left-0 shadow-[2px_0_4px_rgba(0,0,0,0.3)]">
-        {trackIcons[track.color]}
-        <div className="flex gap-0.5">
+    <div style={{ height: trackHeight }} className={`flex border-b border-[#2a2a2a] ${track.isMuted ? 'opacity-40' : ''}`}>
+      {/* Cubase-style Track Header - 160px wide */}
+      <div className="w-[160px] flex-shrink-0 bg-[#222222] border-r border-[#111] flex flex-col justify-center px-2 py-1 z-30 sticky left-0 shadow-[2px_0_4px_rgba(0,0,0,0.3)]">
+        
+        {/* Top row: Name & Lock */}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+             {trackIcons[track.color]}
+             <span className="text-[10px] font-bold text-gray-200 truncate">{track.name}</span>
+          </div>
           <button 
             onClick={() => setIsLocked(!isLocked)}
-            className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${isLocked ? 'bg-yellow-500/30 text-yellow-400' : 'text-gray-600 hover:text-gray-400'}`}
+            className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${isLocked ? 'bg-yellow-500/30 text-yellow-400' : 'text-gray-500 hover:text-gray-300'}`}
           >
             <Lock className="w-2.5 h-2.5" />
           </button>
+        </div>
+
+        {/* Middle row: Mute & Solo */}
+        <div className="flex items-center gap-1 mb-2">
           <button 
-            onClick={() => setIsMuted(!isMuted)}
-            className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${isMuted ? 'bg-red-500/30 text-red-400' : 'text-gray-600 hover:text-gray-400'}`}
+            onClick={() => onMuteToggle(track.id)}
+            className={`w-6 h-5 rounded flex items-center justify-center text-[9px] font-bold transition-colors border ${track.isMuted ? 'bg-yellow-600 border-yellow-500 text-white shadow-[0_0_8px_rgba(202,138,4,0.4)]' : 'bg-[#333] border-[#444] text-gray-400 hover:bg-[#444]'}`}
           >
-            {isMuted ? <EyeOff className="w-2.5 h-2.5" /> : <Eye className="w-2.5 h-2.5" />}
+            M
           </button>
+          <button 
+            onClick={() => onSoloToggle(track.id)}
+            className={`w-6 h-5 rounded flex items-center justify-center text-[9px] font-bold transition-colors border ${track.isSoloed ? 'bg-red-600 border-red-500 text-white shadow-[0_0_8px_rgba(220,38,38,0.4)]' : 'bg-[#333] border-[#444] text-gray-400 hover:bg-[#444]'}`}
+          >
+            S
+          </button>
+        </div>
+
+        {/* Bottom row: Volume Slider */}
+        <div className="flex items-center gap-1.5 bg-[#1a1a1a] p-1 rounded border border-[#333]">
+          <Volume2 className="w-3 h-3 text-gray-400 flex-shrink-0" />
+          <input 
+            type="range" min="0" max="1" step="0.01" 
+            value={track.volume !== undefined ? track.volume : 1} 
+            onChange={(e) => onVolumeChange(track.id, parseFloat(e.target.value))}
+            className="flex-1 h-1 bg-[#444] rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full cursor-pointer hover:[&::-webkit-slider-thumb]:bg-cyan-400 transition-all"
+          />
         </div>
       </div>
 
@@ -196,7 +219,7 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onPointerDown={handleTrackClick}
-        className="flex-1 relative bg-[#1a1a1a] hover:bg-[#1c1c1c] transition-colors"
+        className="flex-1 relative bg-[#1a1a1a] hover:bg-[#1c1c1c] transition-colors overflow-hidden"
       >
         {track.clips.map(clip => (
           <Clip 
@@ -205,6 +228,7 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
             onRemove={isLocked ? () => {} : onRemoveClip}
             zoomLevel={zoomLevel} isSelected={selectedClipId === clip.id} onSelect={onSelectClip}
             clipDurations={clipDurations} clipWsRefs={clipWsRefs} playheadTime={playheadTime}
+            trackHeight={trackHeight}
           />
         ))}
         {track.clips.length === 0 && (
@@ -213,7 +237,7 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
           </div>
         )}
         {/* Automation Lane overlay */}
-        <AutomationLane data={track.automation} color={track.color} zoomLevel={zoomLevel} />
+        <AutomationLane data={track.automation} color={track.color} zoomLevel={zoomLevel} trackHeight={trackHeight} />
       </div>
     </div>
   );
@@ -222,12 +246,12 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
 // ==========================================
 // COMPONENT: AutomationLane
 // ==========================================
-const AutomationLane = ({ data, color, zoomLevel }) => {
+const AutomationLane = ({ data, color, zoomLevel, trackHeight }) => {
   if (!data || data.length === 0) return null;
   const mapY = (db) => {
     const clamped = Math.max(-20, Math.min(10, db));
     const ratio = (clamped + 20) / 30;
-    return 72 - (ratio * 72);
+    return trackHeight - (ratio * trackHeight);
   };
   const points = data.map(d => `${d.time * zoomLevel},${mapY(d.gainDb)}`).join(' ');
   return (
@@ -242,7 +266,7 @@ const AutomationLane = ({ data, color, zoomLevel }) => {
 // ==========================================
 // COMPONENT: TimelineRuler
 // ==========================================
-const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth }) => {
+const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, isLooping, loopLeft, loopRight, onUpdateLoop }) => {
   const rulerRef = useRef(null);
   const interval = zoomLevel >= 80 ? 1 : zoomLevel >= 40 ? 2 : zoomLevel >= 20 ? 5 : 10;
   const maxSecs = timelineWidth / zoomLevel;
@@ -253,9 +277,21 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth })
     if (!rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
     
+    // Check if clicked on loop markers
+    const clickX = e.clientX - rect.left;
+    const isClickingLeft = isLooping && Math.abs(clickX - (loopLeft * zoomLevel)) < 10;
+    const isClickingRight = isLooping && Math.abs(clickX - (loopRight * zoomLevel)) < 10;
+
     const updateTime = (clientX) => {
       const x = Math.max(0, clientX - rect.left);
-      onClickRuler(x / zoomLevel);
+      const time = Math.max(0, x / zoomLevel);
+      if (isClickingLeft) {
+        onUpdateLoop(Math.min(time, loopRight - 0.5), loopRight);
+      } else if (isClickingRight) {
+        onUpdateLoop(loopLeft, Math.max(time, loopLeft + 0.5));
+      } else {
+        onClickRuler(time);
+      }
     };
     
     updateTime(e.clientX);
@@ -277,6 +313,20 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth })
       className="h-7 bg-[#1a1a1a] border-b border-[#333] relative cursor-pointer select-none"
       style={{ width: timelineWidth }}
     >
+      {/* Loop Region Highlight */}
+      {isLooping && (
+        <div 
+          className="absolute top-0 h-full bg-cyan-500/20 border-t-2 border-cyan-400 z-10"
+          style={{ left: loopLeft * zoomLevel, width: (loopRight - loopLeft) * zoomLevel }}
+        >
+          {/* Left Locator Handle */}
+          <div className="absolute top-0 bottom-0 left-[-4px] w-2 cursor-ew-resize hover:bg-cyan-300 transition-colors" />
+          {/* Right Locator Handle */}
+          <div className="absolute top-0 bottom-0 right-[-4px] w-2 cursor-ew-resize hover:bg-cyan-300 transition-colors" />
+        </div>
+      )}
+
+      {/* Grid Ticks */}
       {[...Array(totalTicks)].map((_, i) => {
         const timeSec = i * interval;
         const x = timeSec * zoomLevel;
@@ -292,6 +342,7 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth })
           </div>
         );
       })}
+
       {/* Playhead Handle on Ruler */}
       <div 
         className="absolute top-0 bottom-0 z-50 pointer-events-none"
@@ -321,9 +372,18 @@ const EditorPage = () => {
   const clipDurations = useRef({});
   const clipWsRefs = useRef({}); // Store references to wavesurfer instances for playback control
 
+  // DAW View State
   const [zoomLevel, setZoomLevel] = useState(50);
+  const [trackHeight, setTrackHeight] = useState(72); // Dynamic track height
+
+  // Playback State
   const [playheadTime, setPlayheadTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
+  const [loopLeft, setLoopLeft] = useState(0);
+  const [loopRight, setLoopRight] = useState(10); // default 10 seconds
+
+  // Selection State
   const [selectedClipId, setSelectedClipId] = useState(null);
   const [clipboard, setClipboard] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
@@ -331,8 +391,25 @@ const EditorPage = () => {
 
   const tracksRef = useRef(tracks);
   useEffect(() => { tracksRef.current = tracks; }, [tracks]);
+  const isLoopingRef = useRef(isLooping);
+  useEffect(() => { isLoopingRef.current = isLooping; }, [isLooping]);
+  const loopLeftRef = useRef(loopLeft);
+  useEffect(() => { loopLeftRef.current = loopLeft; }, [loopLeft]);
+  const loopRightRef = useRef(loopRight);
+  useEffect(() => { loopRightRef.current = loopRight; }, [loopRight]);
 
-  // Playback Engine
+  // Track Header Actions
+  const handleMuteToggle = (trackId) => {
+    setTracks(prev => prev.map(t => t.id === trackId ? { ...t, isMuted: !t.isMuted } : t));
+  };
+  const handleSoloToggle = (trackId) => {
+    setTracks(prev => prev.map(t => t.id === trackId ? { ...t, isSoloed: !t.isSoloed } : t));
+  };
+  const handleVolumeChange = (trackId, newVol) => {
+    setTracks(prev => prev.map(t => t.id === trackId ? { ...t, volume: newVol } : t));
+  };
+
+  // Playback Engine (Solo, Mute, Volume, Looping)
   useEffect(() => {
     let animationFrame;
     let startTime;
@@ -343,20 +420,41 @@ const EditorPage = () => {
       startPlayhead = playheadTime;
 
       const updatePlayhead = () => {
-        const elapsed = (performance.now() - startTime) / 1000;
-        const currentPlayhead = startPlayhead + elapsed;
+        let elapsed = (performance.now() - startTime) / 1000;
+        let currentPlayhead = startPlayhead + elapsed;
+
+        // Loop handling
+        if (isLoopingRef.current && currentPlayhead >= loopRightRef.current) {
+          const loopDuration = loopRightRef.current - loopLeftRef.current;
+          if (loopDuration > 0) {
+            const loops = Math.floor((currentPlayhead - loopLeftRef.current) / loopDuration);
+            currentPlayhead = currentPlayhead - (loops * loopDuration);
+            startPlayhead = currentPlayhead;
+            startTime = performance.now();
+          }
+        }
+
         setPlayheadTime(currentPlayhead);
 
-        // Synchronize clip playback
+        // Determine if any track is soloed
+        const anySolo = tracksRef.current.some(t => t.isSoloed);
+
+        // Synchronize clip playback & volume
         tracksRef.current.forEach(t => {
+          const shouldPlay = anySolo ? t.isSoloed : !t.isMuted;
+          const trackVol = t.volume !== undefined ? t.volume : 1;
+
           t.clips.forEach(c => {
             const ws = clipWsRefs.current[c.id];
             if (ws) {
+              // Apply volume (0.0 to 1.0)
+              if (ws.getVolume() !== trackVol) ws.setVolume(trackVol);
+
               const clipStart = c.offset;
               const clipDur = (c.trimEndSec || clipDurations.current[c.id] || ws.getDuration()) - (c.trimStartSec || 0);
               const clipEnd = clipStart + clipDur;
 
-              if (currentPlayhead >= clipStart && currentPlayhead < clipEnd) {
+              if (shouldPlay && currentPlayhead >= clipStart && currentPlayhead < clipEnd) {
                 if (!ws.isPlaying()) {
                   const totalDur = ws.getDuration();
                   if (totalDur > 0) {
@@ -386,7 +484,7 @@ const EditorPage = () => {
     }
 
     return () => cancelAnimationFrame(animationFrame);
-  }, [isPlaying]);
+  }, [isPlaying]); // Notice: Removed playheadTime, we recalculate internally
 
   // When playhead moves manually while paused, update wavesurfers so they preview the frame
   useEffect(() => {
@@ -650,9 +748,9 @@ const EditorPage = () => {
       {/* MAIN ARRANGE WINDOW */}
       <div className="flex-1 flex flex-col bg-[#141414] relative z-40">
         
-        {/* Top Toolbar - CapCut style */}
+        {/* Top Toolbar - Cubase / CapCut style */}
         <div className="h-10 bg-[#1e1e1e] border-b border-[#2a2a2a] flex items-center justify-between px-3 z-50 relative shadow-sm">
-          {/* Left: Play/Pause and Undo/Redo */}
+          {/* Left: Play/Pause and Tools */}
           <div className="flex items-center gap-1">
             <button 
               onClick={() => setIsPlaying(!isPlaying)}
@@ -662,6 +760,16 @@ const EditorPage = () => {
               {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
             </button>
             <div className="w-px h-5 bg-[#333] mr-2" />
+            
+            {/* Loop Toggle */}
+            <button 
+              onClick={() => setIsLooping(!isLooping)}
+              className={`w-7 h-7 rounded flex items-center justify-center transition-colors mr-2 ${isLooping ? 'bg-cyan-500 text-black' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              title="Cycle/Loop Mode"
+            >
+              <Repeat className="w-4 h-4" />
+            </button>
+
             <button onClick={handleUndo} className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${undoStack.length > 0 ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600'}`} title="Undo (Ctrl+Z)">
               <Undo2 className="w-3.5 h-3.5" />
             </button>
@@ -683,29 +791,6 @@ const EditorPage = () => {
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-            <button 
-              onClick={() => { 
-                if (selectedClipId) {
-                  for (const t of tracks) { const c = t.clips.find(cl => cl.id === selectedClipId); if (c) { setClipboard({...c, trackId: t.id}); break; } }
-                }
-              }}
-              className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${selectedClipId ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600'}`} 
-              title="Copy (Ctrl+C)"
-            >
-              <Copy className="w-3.5 h-3.5" />
-            </button>
-            <button 
-              onClick={() => {
-                if (clipboard) { 
-                  pushUndo();
-                  setTracks(prev => prev.map(t => t.id === clipboard.trackId ? {...t, clips: [...t.clips, {...clipboard, id: `clip_${Date.now()}_paste`, offset: playheadTime}]} : t));
-                }
-              }}
-              className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${clipboard ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600'}`} 
-              title="Paste (Ctrl+V)"
-            >
-              <Clipboard className="w-3.5 h-3.5" />
-            </button>
           </div>
 
           {/* Center: Timecode */}
@@ -715,7 +800,18 @@ const EditorPage = () => {
           
           {/* Right: Zoom + Mix */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-black/30 rounded px-1">
+            
+            {/* Vertical Track Height Slider */}
+            <div className="flex items-center gap-1.5 bg-black/30 rounded px-2 py-1 border border-[#2a2a2a]">
+              <Settings2 className="w-3 h-3 text-gray-500" />
+              <input 
+                type="range" min="40" max="150" value={trackHeight} onChange={(e) => setTrackHeight(parseInt(e.target.value))}
+                className="w-16 h-1 bg-[#444] rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-gray-300 [&::-webkit-slider-thumb]:rounded-full cursor-pointer"
+                title="Track Height"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-black/30 rounded px-1 border border-[#2a2a2a]">
               <button onClick={() => setZoomLevel(prev => Math.max(10, prev - 10))} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white">
                 <ZoomOut className="w-3 h-3" />
               </button>
@@ -726,7 +822,7 @@ const EditorPage = () => {
             </div>
             <button
               onClick={onMixClick}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded text-[11px] font-bold shadow-[0_0_10px_rgba(0,200,255,0.3)] transition-all"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded text-[11px] font-bold shadow-[0_0_10px_rgba(0,200,255,0.3)] transition-all ml-2"
             >
               <Waves className="w-3 h-3" />
               Mix
@@ -745,9 +841,13 @@ const EditorPage = () => {
             {/* Ruler Row (Sticky Top) */}
             <div className="flex sticky top-0 z-40 bg-[#1a1a1a]">
               {/* Spacer above track headers (Sticky Left) */}
-              <div className="w-[52px] flex-shrink-0 border-r border-[#2a2a2a] border-b border-[#333] sticky left-0 z-50 bg-[#1a1a1a]" />
+              <div className="w-[160px] flex-shrink-0 border-r border-[#2a2a2a] border-b border-[#333] sticky left-0 z-50 bg-[#1a1a1a]" />
               <div className="flex-1">
-                <TimelineRuler zoomLevel={zoomLevel} playheadTime={playheadTime} onClickRuler={setPlayheadTime} timelineWidth={timelineWidth} />
+                <TimelineRuler 
+                  zoomLevel={zoomLevel} playheadTime={playheadTime} onClickRuler={setPlayheadTime} timelineWidth={timelineWidth}
+                  isLooping={isLooping} loopLeft={loopLeft} loopRight={loopRight}
+                  onUpdateLoop={(l, r) => { setLoopLeft(l); setLoopRight(r); }}
+                />
               </div>
             </div>
 
@@ -758,14 +858,15 @@ const EditorPage = () => {
                 onUpdateClipOffset={handleUpdateClipOffset} onRemoveClip={handleRemoveClip}
                 zoomLevel={zoomLevel} selectedClipId={selectedClipId} onSelectClip={setSelectedClipId}
                 onSetPlayhead={setPlayheadTime} clipDurations={clipDurations} clipWsRefs={clipWsRefs}
-                playheadTime={playheadTime}
+                playheadTime={playheadTime} trackHeight={trackHeight}
+                onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
               />
             ))}
 
-            {/* Global Playhead Line (Offset by 52px for the sticky track headers) */}
+            {/* Global Playhead Line (Offset by 160px for the sticky track headers) */}
             <div 
               className="absolute top-0 bottom-0 w-px bg-white z-30 pointer-events-none"
-              style={{ left: 52 + playheadTime * zoomLevel }}
+              style={{ left: 160 + playheadTime * zoomLevel }}
             />
           </div>
         </div>
