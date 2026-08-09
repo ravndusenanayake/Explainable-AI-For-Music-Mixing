@@ -1,195 +1,327 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { Play, Pause, RefreshCw } from 'lucide-react';
+import { Play, Pause, SkipBack, Volume2, Mic, Guitar, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const AudioVisualizer = ({ originalAudioUrl, processedAudioUrl, eqSettings }) => {
+const WaveformLayer = ({ audioUrl, label, icon: Icon, color, isActive, onReady, syncRef, onTimeUpdate }) => {
   const containerRef = useRef(null);
   const wavesurferRef = useRef(null);
-  const audioCtxRef = useRef(null);
-  const lcFilterRef = useRef(null);
-  const hcFilterRef = useRef(null);
-
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isBypass, setIsBypass] = useState(false); // true means play original
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !audioUrl) return;
 
-    // Initialize Wavesurfer with beautiful gradient styling
     const ws = WaveSurfer.create({
       container: containerRef.current,
-      waveColor: 'rgba(59, 130, 246, 0.4)', // Blue-500 transparent
-      progressColor: '#8b5cf6', // Violet-500
-      cursorColor: '#ffffff',
-      barWidth: 3,
-      barGap: 2,
-      barRadius: 3,
-      height: 120,
+      waveColor: color.wave,
+      progressColor: color.progress,
+      cursorColor: 'rgba(255,255,255,0.5)',
+      barWidth: 2,
+      barGap: 1,
+      barRadius: 2,
+      height: 60,
       normalize: true,
       fillParent: true,
+      interact: true,
     });
 
     wavesurferRef.current = ws;
 
     ws.on('ready', () => {
       setIsReady(true);
-      
-      // Setup Web Audio API routing once wavesurfer is ready and has created its media element
-      if (!audioCtxRef.current) {
-        try {
-          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          audioCtxRef.current = audioCtx;
-          
-          const mediaElement = ws.getMediaElement();
-          const source = audioCtx.createMediaElementSource(mediaElement);
-          
-          const lcFilter = audioCtx.createBiquadFilter();
-          lcFilter.type = 'highpass';
-          lcFilter.Q.value = 0.7; // Standard Butterworth
-          
-          const hcFilter = audioCtx.createBiquadFilter();
-          hcFilter.type = 'lowpass';
-          hcFilter.Q.value = 0.7;
-          
-          lcFilterRef.current = lcFilter;
-          hcFilterRef.current = hcFilter;
-          
-          // Connect: Source -> LC -> HC -> Destination
-          source.connect(lcFilter);
-          lcFilter.connect(hcFilter);
-          hcFilter.connect(audioCtx.destination);
-        } catch (e) {
-          console.warn("AudioContext setup failed or already exists for this element", e);
-        }
-      }
+      if (onReady) onReady(ws);
     });
 
-    ws.on('finish', () => {
-      setIsPlaying(false);
+    ws.on('timeupdate', (currentTime) => {
+      if (onTimeUpdate) onTimeUpdate(currentTime);
     });
+
+    ws.load(audioUrl);
 
     return () => {
       ws.destroy();
-      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-        audioCtxRef.current.close();
-        audioCtxRef.current = null;
-      }
+      wavesurferRef.current = null;
     };
-  }, []);
+  }, [audioUrl]);
 
-  // Sync EQ Settings to Web Audio Filters
+  // Expose wavesurfer ref to parent
   useEffect(() => {
-    if (lcFilterRef.current && hcFilterRef.current && eqSettings) {
-      const isCutFilterEnabled = eqSettings.enabledModules?.has('CUT FILTER');
-      
-      // Smooth frequency transition using setTargetAtTime to avoid clicks
-      const ctx = audioCtxRef.current;
-      if (ctx) {
-        const timeConstant = 0.1;
-        
-        if (isCutFilterEnabled) {
-          lcFilterRef.current.frequency.setTargetAtTime(eqSettings.lcFreq, ctx.currentTime, timeConstant);
-          hcFilterRef.current.frequency.setTargetAtTime(eqSettings.hcFreq, ctx.currentTime, timeConstant);
-        } else {
-          // Bypass by moving filters out of audible range
-          lcFilterRef.current.frequency.setTargetAtTime(10, ctx.currentTime, timeConstant);
-          hcFilterRef.current.frequency.setTargetAtTime(22000, ctx.currentTime, timeConstant);
-        }
-      }
+    if (syncRef) {
+      syncRef.current = wavesurferRef.current;
     }
-  }, [eqSettings]);
-
-  // Load the appropriate audio when urls or bypass toggle change
-  useEffect(() => {
-    const ws = wavesurferRef.current;
-    if (!ws) return;
-
-    const targetUrl = isBypass ? originalAudioUrl : processedAudioUrl;
-    
-    if (targetUrl) {
-      const currentTime = ws.getCurrentTime();
-      const wasPlaying = ws.isPlaying();
-
-      ws.load(targetUrl).then(() => {
-        // Seek to the same time to allow seamless A/B comparison
-        if (ws.getDuration() > currentTime) {
-           ws.setTime(currentTime);
-        }
-        if (wasPlaying) {
-          ws.play();
-        }
-      });
-    }
-  }, [isBypass, originalAudioUrl, processedAudioUrl]);
-
-  const togglePlayPause = () => {
-    if (!wavesurferRef.current) return;
-    
-    // Resume AudioContext if it was suspended (browser policy)
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
-    }
-
-    if (isPlaying) {
-      wavesurferRef.current.pause();
-    } else {
-      wavesurferRef.current.play();
-    }
-    setIsPlaying(!isPlaying);
-  };
+  });
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="glass-panel rounded-3xl p-8 w-full max-w-5xl mx-auto flex flex-col gap-8"
-    >
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-        <h2 className="text-2xl font-bold text-white tracking-tight">Audio Analysis</h2>
-        
-        {/* A/B Test Toggle */}
-        <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-full border border-white/5">
-          <button
-            onClick={() => setIsBypass(true)}
-            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
-              isBypass ? 'bg-slate-700 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Original
-          </button>
-          <button
-            onClick={() => setIsBypass(false)}
-            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
-              !isBypass ? 'bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[0_0_15px_rgba(139,92,246,0.5)]' : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Processed (AI)
-          </button>
-        </div>
+    <div className={`relative rounded-xl border transition-all duration-300 ${
+      isActive 
+        ? `border-white/10 bg-black/40 shadow-lg` 
+        : 'border-white/5 bg-black/20 opacity-60'
+    }`}>
+      {/* Label */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5">
+        <Icon className={`w-4 h-4 ${color.icon}`} />
+        <span className={`text-xs font-semibold uppercase tracking-wider ${color.label}`}>{label}</span>
+        {isActive && (
+          <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${color.activePill}`}>
+            PLAYING
+          </span>
+        )}
       </div>
-
-      {/* Waveform Container */}
-      <div className="relative bg-black/40 rounded-2xl p-4 border border-white/5 shadow-inner">
-        {!isReady && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-2xl z-10 backdrop-blur-sm">
-            <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
+      
+      {/* Waveform */}
+      <div className="px-3 py-2">
+        {!audioUrl && (
+          <div className="h-[60px] flex items-center justify-center text-gray-600 text-xs">
+            No audio loaded
           </div>
         )}
         <div ref={containerRef} className="w-full" />
       </div>
+    </div>
+  );
+};
+
+const AudioVisualizer = ({ vocalAudioUrl, instrumentalAudioUrl, processedAudioUrl, eqSettings, sections, onSeek }) => {
+  const vocalWsRef = useRef(null);
+  const instrumentalWsRef = useRef(null);
+  const processedWsRef = useRef(null);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [activeTrack, setActiveTrack] = useState('mixed'); // 'vocal' | 'instrumental' | 'mixed'
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  const getActiveWs = useCallback(() => {
+    switch (activeTrack) {
+      case 'vocal': return vocalWsRef.current;
+      case 'instrumental': return instrumentalWsRef.current;
+      case 'mixed': return processedWsRef.current;
+      default: return processedWsRef.current;
+    }
+  }, [activeTrack]);
+
+  const stopAll = useCallback(() => {
+    [vocalWsRef, instrumentalWsRef, processedWsRef].forEach(ref => {
+      if (ref.current && ref.current.isPlaying()) {
+        try { ref.current.pause(); } catch (e) {}
+      }
+    });
+  }, []);
+
+  const togglePlayPause = () => {
+    const ws = getActiveWs();
+    if (!ws) return;
+
+    if (isPlaying) {
+      stopAll();
+      setIsPlaying(false);
+    } else {
+      stopAll();
+      ws.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const switchTrack = (track) => {
+    const wasPlaying = isPlaying;
+    const currentWs = getActiveWs();
+    const time = currentWs ? currentWs.getCurrentTime() : 0;
+
+    stopAll();
+    setActiveTrack(track);
+
+    // After state update, seek & play the new track
+    setTimeout(() => {
+      const newWs = track === 'vocal' ? vocalWsRef.current
+        : track === 'instrumental' ? instrumentalWsRef.current
+        : processedWsRef.current;
+
+      if (newWs) {
+        try {
+          if (newWs.getDuration() > time) {
+            newWs.setTime(time);
+          }
+          if (wasPlaying) {
+            newWs.play();
+          }
+        } catch (e) {}
+      }
+    }, 50);
+  };
+
+  const handleRestart = () => {
+    const ws = getActiveWs();
+    if (ws) {
+      ws.setTime(0);
+      if (!isPlaying) {
+        ws.play();
+        setIsPlaying(true);
+      }
+    }
+  };
+
+  const handleTimeUpdate = (time) => {
+    setCurrentTime(time);
+    if (onSeek) onSeek(time);
+  };
+
+  const handleProcessedReady = (ws) => {
+    setDuration(ws.getDuration());
+  };
+
+  // Expose seek function for external components (MixExplainer)
+  const seekTo = useCallback((time) => {
+    const ws = getActiveWs();
+    if (ws) {
+      ws.setTime(time);
+      if (!isPlaying) {
+        ws.play();
+        setIsPlaying(true);
+      }
+    }
+  }, [getActiveWs, isPlaying]);
+
+  // Listen for finish
+  useEffect(() => {
+    const ws = getActiveWs();
+    if (!ws) return;
+    const handleFinish = () => setIsPlaying(false);
+    ws.on('finish', handleFinish);
+    return () => ws.un('finish', handleFinish);
+  }, [getActiveWs]);
+
+  const formatTime = (s) => {
+    const min = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  const tracks = [
+    { key: 'vocal', label: 'Vocal', icon: Mic, color: 'rose' },
+    { key: 'instrumental', label: 'Instrumental', icon: Guitar, color: 'cyan' },
+    { key: 'mixed', label: 'Mixed (AI)', icon: Sparkles, color: 'violet' },
+  ];
+
+  const colorSchemes = {
+    vocal: {
+      wave: 'rgba(244, 63, 94, 0.3)',
+      progress: '#f43f5e',
+      icon: 'text-rose-400',
+      label: 'text-rose-300',
+      activePill: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
+    },
+    instrumental: {
+      wave: 'rgba(6, 182, 212, 0.3)',
+      progress: '#06b6d4',
+      icon: 'text-cyan-400',
+      label: 'text-cyan-300',
+      activePill: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30',
+    },
+    mixed: {
+      wave: 'rgba(139, 92, 246, 0.3)',
+      progress: '#8b5cf6',
+      icon: 'text-violet-400',
+      label: 'text-violet-300',
+      activePill: 'bg-violet-500/20 text-violet-300 border border-violet-500/30',
+    },
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="glass-panel rounded-3xl p-6 md:p-8 w-full max-w-5xl mx-auto flex flex-col gap-6"
+    >
+      {/* Header + Track Switcher */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="flex items-center gap-3">
+          <Volume2 className="w-5 h-5 text-blue-400" />
+          <h2 className="text-xl font-bold text-white tracking-tight">Multitrack Analysis</h2>
+          {duration > 0 && (
+            <span className="text-xs text-gray-500 font-mono bg-white/5 px-2 py-1 rounded">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          )}
+        </div>
+
+        {/* 3-way Track Toggle */}
+        <div className="flex items-center gap-1 bg-black/40 p-1 rounded-full border border-white/5">
+          {tracks.map(({ key, label, icon: TIcon, color }) => (
+            <button
+              key={key}
+              onClick={() => switchTrack(key)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all ${
+                activeTrack === key
+                  ? `bg-${color}-500/20 text-${color}-300 shadow-md border border-${color}-500/20`
+                  : 'text-gray-400 hover:text-gray-200 border border-transparent'
+              }`}
+              style={activeTrack === key ? {
+                background: key === 'vocal' ? 'rgba(244,63,94,0.15)' :
+                             key === 'instrumental' ? 'rgba(6,182,212,0.15)' :
+                             'rgba(139,92,246,0.15)',
+                color: key === 'vocal' ? '#fda4af' :
+                       key === 'instrumental' ? '#67e8f9' :
+                       '#c4b5fd',
+                boxShadow: key === 'vocal' ? '0 0 15px rgba(244,63,94,0.3)' :
+                            key === 'instrumental' ? '0 0 15px rgba(6,182,212,0.3)' :
+                            '0 0 15px rgba(139,92,246,0.3)',
+              } : {}}
+            >
+              <TIcon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stacked Waveforms */}
+      <div className="flex flex-col gap-3">
+        <WaveformLayer
+          audioUrl={vocalAudioUrl}
+          label="Vocal"
+          icon={Mic}
+          color={colorSchemes.vocal}
+          isActive={activeTrack === 'vocal'}
+          syncRef={vocalWsRef}
+          onTimeUpdate={activeTrack === 'vocal' ? handleTimeUpdate : undefined}
+        />
+        <WaveformLayer
+          audioUrl={instrumentalAudioUrl}
+          label="Instrumental"
+          icon={Guitar}
+          color={colorSchemes.instrumental}
+          isActive={activeTrack === 'instrumental'}
+          syncRef={instrumentalWsRef}
+          onTimeUpdate={activeTrack === 'instrumental' ? handleTimeUpdate : undefined}
+        />
+        <WaveformLayer
+          audioUrl={processedAudioUrl}
+          label="Mixed Output (AI)"
+          icon={Sparkles}
+          color={colorSchemes.mixed}
+          isActive={activeTrack === 'mixed'}
+          syncRef={processedWsRef}
+          onReady={handleProcessedReady}
+          onTimeUpdate={activeTrack === 'mixed' ? handleTimeUpdate : undefined}
+        />
+      </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-center gap-4">
+        <button
+          onClick={handleRestart}
+          className="flex items-center justify-center w-10 h-10 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-full transition-all"
+        >
+          <SkipBack className="w-5 h-5" />
+        </button>
         <button
           onClick={togglePlayPause}
-          disabled={!isReady}
-          className="flex items-center justify-center w-16 h-16 bg-gradient-to-tr from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-full transition-all transform hover:scale-110 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 shadow-[0_0_20px_rgba(59,130,246,0.4)]"
+          className="flex items-center justify-center w-16 h-16 bg-gradient-to-tr from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-full transition-all transform hover:scale-110 active:scale-95 shadow-[0_0_25px_rgba(59,130,246,0.4)]"
         >
           {isPlaying ? <Pause className="w-7 h-7 fill-current" /> : <Play className="w-7 h-7 fill-current ml-1" />}
         </button>
+        <div className="w-10" /> {/* Spacer for symmetry */}
       </div>
     </motion.div>
   );

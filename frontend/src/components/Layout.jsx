@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Music, LayoutDashboard, SlidersHorizontal, MicVocal, RefreshCw } from 'lucide-react';
+import { Music, LayoutDashboard, RefreshCw, Sparkles } from 'lucide-react';
 import { useAudioContext } from '../context/AudioContext';
 
 const Layout = () => {
@@ -26,10 +26,10 @@ const Layout = () => {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-gradient-to-br from-blue-500/20 to-violet-500/10 rounded-xl border border-blue-500/20 shadow-lg">
-              <Music className="w-5 h-5 text-blue-400" />
+              <Sparkles className="w-5 h-5 text-blue-400" />
             </div>
             <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-blue-200">
-              Mix Assistant
+              Mix Studio
             </span>
           </div>
 
@@ -51,7 +51,7 @@ const Layout = () => {
             className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white px-4 py-2 rounded-xl hover:bg-white/5 transition-all group"
           >
             <RefreshCw className="w-4 h-4 group-hover:-rotate-180 transition-transform duration-500" />
-            New Track
+            New Mix
           </button>
         </div>
       </header>

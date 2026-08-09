@@ -1,8 +1,7 @@
 const express = require('express');
 const multer = require('multer');
-const axios = require('axios');
-const FormData = require('form-data');
 const cors = require('cors');
+const { mixTracks } = require('./mixEngine');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -11,12 +10,68 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Multer setup - using memory storage for seamless forwarding
-const upload = multer({ storage: multer.memoryStorage() });
+// Multer setup - using memory storage for seamless processing
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB per file
+});
 
-// Defaulting to typical FastAPI local port, can be overridden via environment variables
-const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000/process';
+// ============================================================
+// NEW: Multi-track mix endpoint
+// Accepts two files: 'vocal' and 'instrumental'
+// ============================================================
+app.post('/api/mix', upload.fields([
+  { name: 'vocal', maxCount: 1 },
+  { name: 'instrumental', maxCount: 1 },
+]), async (req, res) => {
+  try {
+    // Validate both files are present
+    if (!req.files || !req.files.vocal || !req.files.instrumental) {
+      const missing = [];
+      if (!req.files?.vocal) missing.push('vocal');
+      if (!req.files?.instrumental) missing.push('instrumental');
+      return res.status(400).json({
+        error: `Missing required track(s): ${missing.join(', ')}. Please upload both a vocal and an instrumental track.`,
+      });
+    }
 
+    const vocalFile = req.files.vocal[0];
+    const instrumentalFile = req.files.instrumental[0];
+
+    console.log(`[Node] Received vocal: ${vocalFile.originalname} (${(vocalFile.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`[Node] Received instrumental: ${instrumentalFile.originalname} (${(instrumentalFile.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log('[Node] Starting mix engine...');
+
+    const startTime = Date.now();
+
+    // Run the mixing engine
+    const result = await mixTracks(vocalFile.buffer, instrumentalFile.buffer);
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[Node] Mix complete in ${elapsed}s`);
+
+    // Convert mixed audio to base64 for transport
+    const mixedBase64 = `data:audio/wav;base64,${result.mixedAudioBuffer.toString('base64')}`;
+
+    return res.status(200).json({
+      processed_audio_base64: mixedBase64,
+      sections: result.sections,
+      globalSummary: result.globalSummary,
+      explanations: result.explanations,
+    });
+
+  } catch (error) {
+    console.error('[Node] Error in /api/mix:', error.message);
+    return res.status(500).json({
+      error: 'Failed to process and mix tracks.',
+      details: error.message,
+    });
+  }
+});
+
+// ============================================================
+// LEGACY: Single-track upload endpoint (kept for compatibility)
+// ============================================================
 app.post('/api/upload', upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
@@ -25,39 +80,19 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
 
     console.log(`[Node] Received file: ${req.file.originalname}, Size: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
 
-    // Prepare FormData for Python service
-    const formData = new FormData();
-    formData.append('audio', req.file.buffer, {
-      filename: req.file.originalname,
-      contentType: req.file.mimetype,
+    // Return mock explanations for single-track mode
+    return res.status(200).json({
+      explanations: [
+        { action: "Applied Low-Cut Filter at 40Hz", reason: "Excessive sub-frequency rumble detected below 40Hz.", tip: "Always use high-pass filters on non-bass instruments." },
+        { action: "Dynamic EQ on Vocal Range", reason: "Harsh resonances found around 3kHz.", tip: "A dynamic EQ cuts narrow Q bands only when they become piercing." },
+        { action: "RMS Leveling & True Peak Limiting", reason: "Track had highly dynamic peaks.", tip: "Set your True Peak Limiter ceiling to -1.0dBTP for streaming." }
+      ]
     });
-
-    console.log(`[Node] Forwarding to Python FastAPI service at ${PYTHON_SERVICE_URL}...`);
-
-    // Call Python FastAPI service
-    let pythonResponse;
-    try {
-      pythonResponse = await axios.post(PYTHON_SERVICE_URL, formData, {
-        headers: {
-          ...formData.getHeaders(),
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-      });
-      console.log('[Node] Successfully received response from Python service.');
-      return res.status(200).json(pythonResponse.data);
-    } catch (pythonError) {
-      console.warn('[Node] Python service unreachable. Returning empty response to trigger frontend mock data fallback.');
-      // Return 200 with empty data so the frontend uses its mock data
-      return res.status(200).json({});
-    }
-
   } catch (error) {
     console.error('[Node] Error in /api/upload:', error.message);
-    
     return res.status(500).json({
       error: 'Failed to process audio.',
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -65,6 +100,7 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
 app.listen(port, () => {
   console.log(`=========================================`);
   console.log(`🚀 Node.js Backend listening on port ${port}`);
-  console.log(`🔗 Pointing to Python API at: ${PYTHON_SERVICE_URL}`);
+  console.log(`🎵 Multi-track mix endpoint: POST /api/mix`);
+  console.log(`📁 Legacy upload endpoint:   POST /api/upload`);
   console.log(`=========================================`);
 });
