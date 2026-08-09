@@ -21,17 +21,22 @@ body {
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
 
-/* Custom scrollbar for modern feel */
+/* Custom scrollbar for modern feel (CapCut style) */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #1a1a1a;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
+  background: #333333;
+  border-radius: 5px;
+  border: 2px solid #1a1a1a;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: #444444;
+}
+::-webkit-scrollbar-corner {
+  background: #1a1a1a;
 }
