@@ -17,13 +17,37 @@ export const AudioProvider = ({ children }) => {
   // Array of uploaded files: { id, file, url, name, type }
   const [mediaPool, setMediaPool] = useState([]);
 
-  // Array of timeline tracks: { id, name, type, color, clips: [{ id, mediaId, offset }] }
+  const defaultEffects = {
+    eq: { enabled: false, highPass: 80, presence: 3 },
+    deEsser: { enabled: false, amount: 50 },
+    compressor: { enabled: false, threshold: -15, ratio: 4 },
+    reverb: { enabled: false, type: 'plate', mix: 15 },
+    delay: { enabled: false, time: '1/4', mix: 10 },
+    saturation: { enabled: false, drive: 20 }
+  };
+
+  // Array of timeline tracks: { id, name, type, color, clips: [{ id, mediaId, offset }], effects }
   const [tracks, setTracks] = useState([
-    { id: 't1', name: 'Lead Vocal', type: 'vocal', color: 'rose', clips: [] },
-    { id: 't2', name: 'Backing Vocal', type: 'vocal', color: 'pink', clips: [] },
-    { id: 't3', name: 'Main Instrumental', type: 'instrumental', color: 'cyan', clips: [] },
-    { id: 't4', name: 'Drums / Beat', type: 'instrumental', color: 'blue', clips: [] },
+    { id: 't1', name: 'Lead Vocal', type: 'vocal', color: 'rose', clips: [], effects: JSON.parse(JSON.stringify(defaultEffects)) },
+    { id: 't2', name: 'Backing Vocal', type: 'vocal', color: 'pink', clips: [], effects: JSON.parse(JSON.stringify(defaultEffects)) },
+    { id: 't3', name: 'Main Instrumental', type: 'instrumental', color: 'cyan', clips: [], effects: JSON.parse(JSON.stringify(defaultEffects)) },
+    { id: 't4', name: 'Drums / Beat', type: 'instrumental', color: 'blue', clips: [], effects: JSON.parse(JSON.stringify(defaultEffects)) },
   ]);
+
+  const updateTrackEffect = (trackId, effectKey, updates) => {
+    setTracks(prev => prev.map(t => {
+      if (t.id === trackId) {
+        return {
+          ...t,
+          effects: {
+            ...t.effects,
+            [effectKey]: { ...t.effects[effectKey], ...updates }
+          }
+        };
+      }
+      return t;
+    }));
+  };
 
   // Mixed Output State
   const [processedAudioUrl, setProcessedAudioUrl] = useState(null);
@@ -147,7 +171,7 @@ export const AudioProvider = ({ children }) => {
     
     // DAW State
     mediaPool, setMediaPool, addMediaToPool,
-    tracks, setTracks,
+    tracks, setTracks, updateTrackEffect,
     
     // Output
     processedAudioUrl, setProcessedAudioUrl,

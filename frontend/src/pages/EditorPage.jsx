@@ -9,6 +9,7 @@ import {
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
   PlaySquare, Repeat, Settings2
 } from 'lucide-react';
+import TrackInspector from '../components/TrackInspector';
 
 // ==========================================
 // HELPERS
@@ -138,7 +139,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
 // ==========================================
 // COMPONENT: Track
 // ==========================================
-const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange }) => {
+const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack }) => {
   const trackRef = useRef(null);
   const [isLocked, setIsLocked] = useState(false);
 
@@ -169,7 +170,10 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
   return (
     <div style={{ height: trackHeight }} className={`flex border-b border-[#2a2a2a] ${track.isMuted ? 'opacity-40' : ''}`}>
       {/* Cubase-style Track Header - 160px wide */}
-      <div className="w-[160px] flex-shrink-0 bg-[#222222] border-r border-[#111] flex flex-col justify-center px-2 py-1 z-30 sticky left-0 shadow-[2px_0_4px_rgba(0,0,0,0.3)]">
+      <div 
+        onClick={() => onSelectTrack(track.id)}
+        className="w-[160px] flex-shrink-0 bg-[#222222] border-r border-[#111] flex flex-col justify-center px-2 py-1 z-30 sticky left-0 shadow-[2px_0_4px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-[#282828]"
+      >
         
         {/* Top row: Name & Lock */}
         <div className="flex items-center justify-between mb-1">
@@ -385,6 +389,7 @@ const EditorPage = () => {
 
   // Selection State
   const [selectedClipId, setSelectedClipId] = useState(null);
+  const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [clipboard, setClipboard] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -696,10 +701,11 @@ const EditorPage = () => {
   const timelineWidth = Math.max(800, (maxClipEndSec + 60) * zoomLevel); // Add 60s padding to end
 
   return (
-    <div className="flex h-[calc(100vh-80px)] overflow-hidden bg-[#141414] text-white">
-      
-      {/* LEFT SIDEBAR: Media Pool */}
-      <div className="w-56 bg-[#1a1a1a] border-r border-[#2a2a2a] flex flex-col z-50 relative">
+    <div className="h-screen w-full overflow-x-auto overflow-y-hidden bg-[#141414] text-white">
+      <div className="flex h-full min-w-[1024px]">
+        
+        {/* LEFT SIDEBAR: Media Pool */}
+        <div className="w-56 flex-shrink-0 bg-[#1a1a1a] border-r border-[#2a2a2a] flex flex-col z-50 relative">
         <div className="p-3 border-b border-[#2a2a2a] flex items-center justify-between">
           <h2 className="font-bold text-sm text-gray-300 flex items-center gap-1.5">
             <Music className="w-3.5 h-3.5 text-cyan-400" />
@@ -746,7 +752,7 @@ const EditorPage = () => {
       </div>
 
       {/* MAIN ARRANGE WINDOW */}
-      <div className="flex-1 flex flex-col bg-[#141414] relative z-40">
+      <div className="flex-1 flex flex-col min-w-[500px] bg-[#141414] relative z-40">
         
         {/* Top Toolbar - Cubase / CapCut style */}
         <div className="h-10 bg-[#1e1e1e] border-b border-[#2a2a2a] flex items-center justify-between px-3 z-50 relative shadow-sm">
@@ -860,6 +866,7 @@ const EditorPage = () => {
                 onSetPlayhead={setPlayheadTime} clipDurations={clipDurations} clipWsRefs={clipWsRefs}
                 playheadTime={playheadTime} trackHeight={trackHeight}
                 onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
+                onSelectTrack={setSelectedTrackId}
               />
             ))}
 
@@ -882,6 +889,10 @@ const EditorPage = () => {
           <span>Ctrl+Y Redo</span>
           <span>Ctrl+Scroll Zoom</span>
         </div>
+      </div>
+      
+      {/* NEW RIGHT SIDEBAR: Track Inspector */}
+      <TrackInspector trackId={selectedTrackId} />
       </div>
     </div>
   );

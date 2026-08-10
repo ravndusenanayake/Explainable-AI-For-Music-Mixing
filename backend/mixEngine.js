@@ -603,6 +603,72 @@ async function mixTracks(files, timelineState) {
       `Structure detected: ${Object.entries(sectionTypes).map(([k, v]) => `${v}x ${k}`).join(', ')}.`,
   };
 
+  // Add explanations for user-applied effects
+  timelineState.tracks.forEach(track => {
+    if (track.effects) {
+      if (track.effects.eq?.enabled) {
+        allExplanations.unshift({
+          action: `User EQ Applied: ${track.name}`,
+          reason: `High-pass at ${track.effects.eq.highPass}Hz and +${track.effects.eq.presence}dB presence.`,
+          tip: 'EQ helps clean up muddiness and brings the track forward.',
+          section: 'Global',
+          time: 'Entire Track',
+          sectionType: 'User Setup'
+        });
+      }
+      if (track.effects.deEsser?.enabled) {
+        allExplanations.unshift({
+          action: `User De-Esser: ${track.name}`,
+          reason: `De-Essing applied at ${track.effects.deEsser.amount}%.`,
+          tip: 'Controls harsh sibilance for a smoother sound.',
+          section: 'Global',
+          time: 'Entire Track',
+          sectionType: 'User Setup'
+        });
+      }
+      if (track.effects.compressor?.enabled) {
+        allExplanations.unshift({
+          action: `User Compressor: ${track.name}`,
+          reason: `Threshold ${track.effects.compressor.threshold}dB, Ratio ${track.effects.compressor.ratio}:1.`,
+          tip: 'Evens out dynamics for a more consistent level.',
+          section: 'Global',
+          time: 'Entire Track',
+          sectionType: 'User Setup'
+        });
+      }
+      if (track.effects.reverb?.enabled) {
+        allExplanations.unshift({
+          action: `User Reverb: ${track.name}`,
+          reason: `${track.effects.reverb.type} reverb at ${track.effects.reverb.mix}% mix.`,
+          tip: 'Adds space and depth to the track.',
+          section: 'Global',
+          time: 'Entire Track',
+          sectionType: 'User Setup'
+        });
+      }
+      if (track.effects.delay?.enabled) {
+        allExplanations.unshift({
+          action: `User Delay: ${track.name}`,
+          reason: `${track.effects.delay.time} delay at ${track.effects.delay.mix}% mix.`,
+          tip: 'Adds rhythmic interest and width.',
+          section: 'Global',
+          time: 'Entire Track',
+          sectionType: 'User Setup'
+        });
+      }
+      if (track.effects.saturation?.enabled) {
+        allExplanations.unshift({
+          action: `User Saturation: ${track.name}`,
+          reason: `Saturation drive at ${track.effects.saturation.drive}%.`,
+          tip: 'Adds harmonic warmth and excitement.',
+          section: 'Global',
+          time: 'Entire Track',
+          sectionType: 'User Setup'
+        });
+      }
+    }
+  });
+
   console.log('[MixEngine] ✅ Mix complete!');
   console.log(`[MixEngine] Summary: ${globalSummary.summary}`);
 
