@@ -139,7 +139,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
 // ==========================================
 // COMPONENT: Track
 // ==========================================
-const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack }) => {
+const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack }) => {
   const trackRef = useRef(null);
   const [isLocked, setIsLocked] = useState(false);
 
@@ -158,6 +158,7 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
     const xPos = Math.max(0, e.clientX - rect.left);
     onSetPlayhead(xPos / zoomLevel);
     onSelectClip(null);
+    if (onSelectTrack) onSelectTrack(track.id);
   };
 
   const trackIcons = {
@@ -172,7 +173,7 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
       {/* Cubase-style Track Header - 160px wide */}
       <div 
         onClick={() => onSelectTrack(track.id)}
-        className="w-[160px] flex-shrink-0 bg-[#222222] border-r border-[#111] flex flex-col justify-center px-2 py-1 z-30 sticky left-0 shadow-[2px_0_4px_rgba(0,0,0,0.3)] cursor-pointer hover:bg-[#282828]"
+        className={`w-[160px] flex-shrink-0 border-r border-[#111] flex flex-col justify-center px-2 py-1 z-30 sticky left-0 shadow-[2px_0_4px_rgba(0,0,0,0.3)] cursor-pointer transition-colors ${isSelectedTrack ? 'bg-[#2a2a2a] border-l-2 border-l-cyan-500' : 'bg-[#222222] hover:bg-[#282828] border-l-2 border-l-transparent'}`}
       >
         
         {/* Top row: Name & Lock */}
@@ -403,6 +404,12 @@ const EditorPage = () => {
   const loopRightRef = useRef(loopRight);
   useEffect(() => { loopRightRef.current = loopRight; }, [loopRight]);
 
+  const seekRequestRef = useRef(null);
+  const handleSeek = useCallback((time) => {
+    seekRequestRef.current = time;
+    setPlayheadTime(time);
+  }, []);
+
   // Track Header Actions
   const handleMuteToggle = (trackId) => {
     setTracks(prev => prev.map(t => t.id === trackId ? { ...t, isMuted: !t.isMuted } : t));
@@ -427,6 +434,15 @@ const EditorPage = () => {
       const updatePlayhead = () => {
         let elapsed = (performance.now() - startTime) / 1000;
         let currentPlayhead = startPlayhead + elapsed;
+        
+        let didSeek = false;
+        if (seekRequestRef.current !== null) {
+          startPlayhead = seekRequestRef.current;
+          startTime = performance.now();
+          currentPlayhead = startPlayhead;
+          seekRequestRef.current = null;
+          didSeek = true;
+        }
 
         // Loop handling
         if (isLoopingRef.current && currentPlayhead >= loopRightRef.current) {
@@ -436,6 +452,7 @@ const EditorPage = () => {
             currentPlayhead = currentPlayhead - (loops * loopDuration);
             startPlayhead = currentPlayhead;
             startTime = performance.now();
+            didSeek = true;
           }
         }
 
@@ -460,12 +477,12 @@ const EditorPage = () => {
               const clipEnd = clipStart + clipDur;
 
               if (shouldPlay && currentPlayhead >= clipStart && currentPlayhead < clipEnd) {
-                if (!ws.isPlaying()) {
+                if (!ws.isPlaying() || didSeek) {
                   const totalDur = ws.getDuration();
                   if (totalDur > 0) {
                     const relativeTime = (currentPlayhead - clipStart) + (c.trimStartSec || 0);
                     ws.seekTo(relativeTime / totalDur);
-                    ws.play();
+                    if (!ws.isPlaying()) ws.play();
                   }
                 }
               } else {
@@ -539,7 +556,7 @@ const EditorPage = () => {
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if ((e.target.tagName === 'INPUT' && e.target.type !== 'range') || e.target.tagName === 'TEXTAREA') return;
 
       // Spacebar -> Play / Pause
       if (e.key === ' ' && !e.repeat) {
@@ -590,12 +607,12 @@ const EditorPage = () => {
       // - -> Zoom out
       if (e.key === '-') { setZoomLevel(prev => Math.max(10, prev - 10)); }
       // Left/Right arrow -> nudge playhead
-      if (e.key === 'ArrowLeft') { setPlayheadTime(prev => Math.max(0, prev - (e.shiftKey ? 5 : 1))); }
-      if (e.key === 'ArrowRight') { setPlayheadTime(prev => prev + (e.shiftKey ? 5 : 1)); }
+      if (e.key === 'ArrowLeft') { handleSeek(Math.max(0, playheadTime - (e.shiftKey ? 5 : 1))); }
+      if (e.key === 'ArrowRight') { handleSeek(playheadTime + (e.shiftKey ? 5 : 1)); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedClipId, playheadTime, tracks, clipboard, pushUndo, handleUndo, handleRedo]);
+  }, [selectedClipId, playheadTime, tracks, clipboard, pushUndo, handleUndo, handleRedo, handleSeek]);
 
   // Ctrl+Scroll Native Zoom (Must use native event to prevent browser page zoom)
   useEffect(() => {
@@ -850,7 +867,7 @@ const EditorPage = () => {
               <div className="w-[160px] flex-shrink-0 border-r border-[#2a2a2a] border-b border-[#333] sticky left-0 z-50 bg-[#1a1a1a]" />
               <div className="flex-1">
                 <TimelineRuler 
-                  zoomLevel={zoomLevel} playheadTime={playheadTime} onClickRuler={setPlayheadTime} timelineWidth={timelineWidth}
+                  zoomLevel={zoomLevel} playheadTime={playheadTime} onClickRuler={handleSeek} timelineWidth={timelineWidth}
                   isLooping={isLooping} loopLeft={loopLeft} loopRight={loopRight}
                   onUpdateLoop={(l, r) => { setLoopLeft(l); setLoopRight(r); }}
                 />
@@ -863,10 +880,10 @@ const EditorPage = () => {
                 key={track.id} track={track} onDropMedia={handleDropMedia}
                 onUpdateClipOffset={handleUpdateClipOffset} onRemoveClip={handleRemoveClip}
                 zoomLevel={zoomLevel} selectedClipId={selectedClipId} onSelectClip={setSelectedClipId}
-                onSetPlayhead={setPlayheadTime} clipDurations={clipDurations} clipWsRefs={clipWsRefs}
+                onSetPlayhead={handleSeek} clipDurations={clipDurations} clipWsRefs={clipWsRefs}
                 playheadTime={playheadTime} trackHeight={trackHeight}
                 onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
-                onSelectTrack={setSelectedTrackId}
+                onSelectTrack={setSelectedTrackId} isSelectedTrack={selectedTrackId === track.id}
               />
             ))}
 
@@ -892,7 +909,7 @@ const EditorPage = () => {
       </div>
       
       {/* NEW RIGHT SIDEBAR: Track Inspector */}
-      <TrackInspector trackId={selectedTrackId} />
+      <TrackInspector trackId={selectedTrackId} pushUndo={pushUndo} />
       </div>
     </div>
   );
