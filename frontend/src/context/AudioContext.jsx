@@ -1,5 +1,6 @@
-import React, { createContext, useState, useContext, useRef } from 'react';
+import React, { createContext, useState, useContext, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { get, set } from 'idb-keyval';
 
 const AudioContext = createContext(null);
 
@@ -18,21 +19,63 @@ export const AudioProvider = ({ children }) => {
   const [mediaPool, setMediaPool] = useState([]);
 
   const defaultEffects = {
-    eq: { enabled: false, highPass: 80, presence: 3 },
+    eq: { 
+      enabled: false, 
+      bands: [
+        { id: 1, type: 'highpass', freq: 80, gain: 0, q: 1 },
+        { id: 2, type: 'peaking', freq: 500, gain: 0, q: 1 },
+        { id: 3, type: 'peaking', freq: 2000, gain: 0, q: 1 },
+        { id: 4, type: 'highshelf', freq: 8000, gain: 0, q: 1 }
+      ]
+    },
     deEsser: { enabled: false, amount: 50 },
     compressor: { enabled: false, threshold: -15, ratio: 4 },
-    reverb: { enabled: false, type: 'plate', mix: 15 },
+    reverb: { enabled: false, type: 'valhalla', mix: 20 }, // Added Valhalla style default
     delay: { enabled: false, time: '1/4', mix: 10 },
     saturation: { enabled: false, drive: 20 }
   };
 
   // Array of timeline tracks: { id, name, type, color, clips: [{ id, mediaId, offset }], effects }
   const [tracks, setTracks] = useState([
-    { id: 't1', name: 'Lead Vocal', type: 'vocal', color: 'rose', clips: [], effects: JSON.parse(JSON.stringify(defaultEffects)) },
-    { id: 't2', name: 'Backing Vocal', type: 'vocal', color: 'pink', clips: [], effects: JSON.parse(JSON.stringify(defaultEffects)) },
-    { id: 't3', name: 'Main Instrumental', type: 'instrumental', color: 'cyan', clips: [], effects: JSON.parse(JSON.stringify(defaultEffects)) },
-    { id: 't4', name: 'Drums / Beat', type: 'instrumental', color: 'blue', clips: [], effects: JSON.parse(JSON.stringify(defaultEffects)) },
+    { id: 't1', name: 'Lead Vocal', type: 'vocal', color: 'rose', clips: [], effects: structuredClone(defaultEffects) },
+    { id: 't2', name: 'Backing Vocal', type: 'vocal', color: 'pink', clips: [], effects: structuredClone(defaultEffects) },
+    { id: 't3', name: 'Main Instrumental', type: 'instrumental', color: 'cyan', clips: [], effects: structuredClone(defaultEffects) },
+    { id: 't4', name: 'Drums / Beat', type: 'instrumental', color: 'blue', clips: [], effects: structuredClone(defaultEffects) },
   ]);
+
+  const [isProjectLoaded, setIsProjectLoaded] = useState(false);
+
+  // Initialize from IndexedDB
+  useEffect(() => {
+    const loadProject = async () => {
+      try {
+        const saved = await get('saved_project');
+        if (saved) {
+          // Re-create object URLs for files in mediaPool since URL.createObjectURL does not persist
+          const restoredMediaPool = saved.mediaPool.map(m => ({
+            ...m,
+            url: URL.createObjectURL(m.file)
+          }));
+          setMediaPool(restoredMediaPool);
+          setTracks(saved.tracks);
+        }
+      } catch (err) {
+        console.error("Failed to load project from IndexedDB", err);
+      } finally {
+        setIsProjectLoaded(true);
+      }
+    };
+    loadProject();
+  }, []);
+
+  // Auto-save to IndexedDB (debounced)
+  useEffect(() => {
+    if (!isProjectLoaded) return;
+    const timer = setTimeout(() => {
+      set('saved_project', { tracks, mediaPool }).catch(console.error);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [tracks, mediaPool, isProjectLoaded]);
 
   const updateTrackEffect = (trackId, effectKey, updates) => {
     setTracks(prev => prev.map(t => {
@@ -190,6 +233,17 @@ export const AudioProvider = ({ children }) => {
     error, setError,
     playerSeekRef,
   };
+
+  if (!isProjectLoaded) {
+    return (
+      <div className="fixed inset-0 bg-[#0a0a0a] flex items-center justify-center text-gray-400 font-mono text-sm tracking-widest uppercase">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+          Loading Workspace...
+        </div>
+      </div>
+    );
+  }
 
   return <AudioContext.Provider value={value}>{children}</AudioContext.Provider>;
 };

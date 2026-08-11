@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Settings, Sliders, Waves, Wind, Zap, Disc } from 'lucide-react';
 import { useAudioContext } from '../context/AudioContext';
+import InteractiveEQ from './InteractiveEQ';
 
 const Toggle = ({ checked, onChange, onInteract }) => (
   <button 
@@ -28,6 +29,7 @@ const Slider = ({ value, min, max, step, onChange, onInteract, label, unit }) =>
 
 const TrackInspector = ({ trackId, pushUndo }) => {
   const { tracks, updateTrackEffect } = useAudioContext();
+  const [showEQ, setShowEQ] = useState(false);
   const track = tracks.find(t => t.id === trackId);
 
   if (!track || !track.effects) {
@@ -58,15 +60,15 @@ const TrackInspector = ({ trackId, pushUndo }) => {
         {/* EQ Section */}
         <div className="bg-[#222] border border-[#333] rounded p-2.5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5"><Sliders className="w-3.5 h-3.5 text-rose-400" /> EQ</span>
-            <Toggle checked={effects.eq.enabled} onChange={(val) => update('eq', { enabled: val })} onInteract={handleInteract} />
+            <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5"><Sliders className="w-3.5 h-3.5 text-rose-400" /> Parametric EQ</span>
+            <Toggle checked={effects.eq?.enabled} onChange={(val) => update('eq', { enabled: val })} onInteract={handleInteract} />
           </div>
-          {effects.eq.enabled && (
-            <div className="space-y-1">
-              <Slider label="Low-Cut" value={effects.eq.highPass} min={20} max={200} step={1} unit="Hz" onChange={(val) => update('eq', { highPass: val })} onInteract={handleInteract} />
-              <Slider label="Presence" value={effects.eq.presence} min={-5} max={10} step={0.5} unit="dB" onChange={(val) => update('eq', { presence: val })} onInteract={handleInteract} />
-            </div>
-          )}
+          <button 
+            onClick={() => setShowEQ(true)}
+            className="w-full bg-[#111] hover:bg-[#333] text-gray-300 border border-[#444] rounded text-xs font-bold py-1.5 transition-colors shadow-sm"
+          >
+            Edit EQ Graph
+          </button>
         </div>
 
         {/* De-Esser Section */}
@@ -114,6 +116,7 @@ const TrackInspector = ({ trackId, pushUndo }) => {
                 <option value="room">Room</option>
                 <option value="plate">Plate</option>
                 <option value="hall">Hall</option>
+                <option value="valhalla">Valhalla Lush</option>
               </select>
               <Slider label="Mix" value={effects.reverb.mix} min={0} max={100} step={1} unit="%" onChange={(val) => update('reverb', { mix: val })} onInteract={handleInteract} />
             </div>
@@ -158,6 +161,15 @@ const TrackInspector = ({ trackId, pushUndo }) => {
         </div>
         
       </div>
+
+      {showEQ && (
+        <InteractiveEQ 
+          track={track} 
+          onClose={() => setShowEQ(false)} 
+          onUpdate={update}
+          pushUndo={pushUndo}
+        />
+      )}
     </div>
   );
 };

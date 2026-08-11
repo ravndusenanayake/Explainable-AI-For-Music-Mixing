@@ -535,20 +535,20 @@ const EditorPage = () => {
 
   // Push undo snapshot
   const pushUndo = useCallback(() => {
-    setUndoStack(prev => [...prev.slice(-20), JSON.parse(JSON.stringify(tracks))]);
+    setUndoStack(prev => [...prev.slice(-20), structuredClone(tracks)]);
     setRedoStack([]);
   }, [tracks]);
 
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
-    setRedoStack(prev => [...prev, JSON.parse(JSON.stringify(tracks))]);
+    setRedoStack(prev => [...prev, structuredClone(tracks)]);
     setTracks(undoStack[undoStack.length - 1]);
     setUndoStack(prev => prev.slice(0, -1));
   }, [undoStack, tracks, setTracks]);
 
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0) return;
-    setUndoStack(prev => [...prev, JSON.parse(JSON.stringify(tracks))]);
+    setUndoStack(prev => [...prev, structuredClone(tracks)]);
     setTracks(redoStack[redoStack.length - 1]);
     setRedoStack(prev => prev.slice(0, -1));
   }, [redoStack, tracks, setTracks]);

@@ -607,10 +607,23 @@ async function mixTracks(files, timelineState) {
   timelineState.tracks.forEach(track => {
     if (track.effects) {
       if (track.effects.eq?.enabled) {
+        const bands = track.effects.eq.bands;
+        let reasonStr = '';
+        if (bands) {
+          const significantBands = bands.filter(b => Math.abs(b.gain) > 1 || b.freq > 100);
+          if (significantBands.length > 0) {
+            reasonStr = `Adjusted ${significantBands.length} frequency bands (e.g., ${significantBands[0].type} at ${Math.round(significantBands[0].freq)}Hz).`;
+          } else {
+            reasonStr = 'Parametric EQ enabled with default curve.';
+          }
+        } else {
+          reasonStr = `High-pass at ${track.effects.eq.highPass || 80}Hz and +${track.effects.eq.presence || 3}dB presence.`;
+        }
+
         allExplanations.unshift({
-          action: `User EQ Applied: ${track.name}`,
-          reason: `High-pass at ${track.effects.eq.highPass}Hz and +${track.effects.eq.presence}dB presence.`,
-          tip: 'EQ helps clean up muddiness and brings the track forward.',
+          action: `User Parametric EQ: ${track.name}`,
+          reason: reasonStr,
+          tip: 'EQ shapes the tone, removes muddiness, and brings the track forward.',
           section: 'Global',
           time: 'Entire Track',
           sectionType: 'User Setup'
