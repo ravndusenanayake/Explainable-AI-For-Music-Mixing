@@ -10,7 +10,7 @@ const UploadPage = () => {
 
   const handleStartSession = () => {
     resetContext(); // Ensure clean state
-    navigate('/editor');
+    navigate('/dashboard');
   };
 
   return (

@@ -1,18 +1,21 @@
 import React from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Music, LayoutDashboard, RefreshCw, Sparkles } from 'lucide-react';
 import { useAudioContext } from '../context/AudioContext';
 
 const Layout = () => {
-  const { processedAudioUrl, resetContext } = useAudioContext();
+  const { resetContext } = useAudioContext();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleReset = () => {
     resetContext();
     navigate('/');
   };
 
-  if (!processedAudioUrl) {
+  const isHome = location.pathname === '/';
+
+  if (isHome) {
     return <Outlet />;
   }
 

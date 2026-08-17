@@ -609,67 +609,11 @@ async function mixTracks(files, timelineState) {
   // ── Step 6: Explainable Auto-EQ & Mastering (Phase 2) ──
   const masteringFilters = [];
   
-  // Analyze global trends from the XAI section decisions
-  let needsDeEss = 0;
-  let needsHighCut = 0;
-  let needsCompression = 0;
-  
-  sections.forEach(s => {
-      const actions = s.mixing.actions.join(' ');
-      if (actions.includes('sibilance')) needsDeEss++;
-      if (actions.includes('Bright instrumental')) needsHighCut++;
-      if (actions.includes('dynamic range') || actions.includes('wide dynamics')) needsCompression++;
-  });
+  // --- Auto-Mastering Disabled as per user request ---
+  // The AI now only focuses on volume balancing (Mixing) and skips the heavy mastering phase
+  // so the output remains unmastered and dynamic.
 
-  // If >20% of the song has sibilance, apply de-esser
-  if (needsDeEss > numSections * 0.2) {
-      masteringFilters.push('deesser=i=0.05'); 
-      allExplanations.unshift({
-        action: 'Global Mastering: De-Esser',
-        reason: 'Sibilance was consistently high across multiple sections. Applied global de-essing to smooth out harsh high frequencies.',
-        tip: 'Global de-essing helps when the vocal is too sharp and sticks out of the mix.',
-        section: 'Global', time: 'Entire Track', sectionType: 'Auto-Mastering'
-      });
-  }
-  
-  if (needsHighCut > numSections * 0.2) {
-      masteringFilters.push('treble=g=-2:f=10000');
-      allExplanations.unshift({
-        action: 'Global Mastering: High-Cut',
-        reason: 'The instrumental was overly bright and masking vocal air frequencies. Applied a gentle -2dB cut at 10kHz.',
-        tip: 'Taming the highs in the instrumental leaves room for the vocal to breathe.',
-        section: 'Global', time: 'Entire Track', sectionType: 'Auto-Mastering'
-      });
-  }
-
-  if (needsCompression > numSections * 0.3) {
-      masteringFilters.push('acompressor=ratio=3:makeup=2:threshold=-15dB');
-      allExplanations.unshift({
-        action: 'Global Mastering: Glue Compression',
-        reason: 'Dynamic range was too wide in several sections. Applied a 3:1 bus compressor to glue the tracks together.',
-        tip: 'Bus compression gives the track a cohesive, finished sound.',
-        section: 'Global', time: 'Entire Track', sectionType: 'Auto-Mastering'
-      });
-  } else {
-      // Always apply light mastering compression
-      masteringFilters.push('acompressor=ratio=1.5:makeup=1:threshold=-10dB');
-      allExplanations.unshift({
-        action: 'Global Mastering: Light Compression',
-        reason: 'Applied gentle 1.5:1 compression to slightly polish and glue the mix.',
-        tip: 'Even balanced mixes benefit from very light bus compression.',
-        section: 'Global', time: 'Entire Track', sectionType: 'Auto-Mastering'
-      });
-  }
-  
-  // Always apply a True Peak Limiter at the very end
-  masteringFilters.push('alimiter=limit=0.9');
-  allExplanations.unshift({
-    action: 'Global Mastering: Peak Limiter',
-    reason: 'Applied a True Peak limiter at -1dBTP to prevent digital clipping while maximizing loudness.',
-    tip: 'Streaming services penalize tracks that peak above -1dBTP.',
-    section: 'Global', time: 'Entire Track', sectionType: 'Auto-Mastering'
-  });
-
+  // If there are pitch correction requests, we can still apply them as they are track-level technically
   if (timelineState.applyPitch) {
     // Add a very subtle micro-pitch/chorus effect to emulate a "tuned and widened" modern vocal
     masteringFilters.push('chorus=0.5:0.9:50|60:0.4|0.32:0.25|0.4:2|2.3');
@@ -681,8 +625,10 @@ async function mixTracks(files, timelineState) {
     });
   }
 
-  console.log(`[MixEngine] Applying Auto-Mastering filters: ${masteringFilters.join(',')}`);
-  encodedWav = await applyDSPToBuffer(encodedWav, masteringFilters);
+  if (masteringFilters.length > 0) {
+    console.log(`[MixEngine] Applying Global filters: ${masteringFilters.join(',')}`);
+    encodedWav = await applyDSPToBuffer(encodedWav, masteringFilters);
+  }
 
   // ── Step 7: Generate global summary ──
   const significantSections = sections.filter(s => s.mixing.severity === 'significant').length;
@@ -792,11 +738,44 @@ async function mixTracks(files, timelineState) {
   console.log('[MixEngine] ✅ Mix complete!');
   console.log(`[MixEngine] Summary: ${globalSummary.summary}`);
 
+  // Generate Simple Explanations for Beginners
+  const simpleExplanations = [];
+  
+  if (significantSections > 0) {
+    simpleExplanations.push({
+      action: "Fixed Major Volume Issues",
+      reason: `We found ${significantSections} parts of the song where the vocals were either completely hidden or way too loud, and fixed them.`
+    });
+  }
+  
+  if (adjustedSections > 0) {
+    simpleExplanations.push({
+      action: "Balanced Instruments",
+      reason: `We smoothed out the volume of the instruments in ${adjustedSections} sections so they support the vocals perfectly without overpowering them.`
+    });
+  }
+
+  if (optimalSections > 0) {
+    simpleExplanations.push({
+      action: "Kept Good Parts Untouched",
+      reason: `We found ${optimalSections} sections that were already mixed perfectly, so we left their natural dynamics untouched.`
+    });
+  }
+  
+  const hasUserFX = timelineState.tracks.some(t => t.effects && Object.values(t.effects).some(e => e.enabled));
+  if (hasUserFX) {
+     simpleExplanations.push({
+       action: "Applied Your Custom Effects",
+       reason: "We successfully added the EQ, Reverb, and other effects you selected on the right panel to make the tracks sound professional."
+     });
+  }
+
   return {
     mixedAudioBuffer: Buffer.from(encodedWav),
     sections,
     globalSummary,
-    explanations: allExplanations.slice(0, 20), // Top 20 for the XAI dashboard cards
+    explanations: allExplanations.slice(0, 20), // Advanced explanations
+    simpleExplanations,                         // Beginner friendly explanations
     automationData
   };
 }

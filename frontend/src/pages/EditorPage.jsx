@@ -7,10 +7,14 @@ import {
   Play, Pause, Waves, ArrowRight, Plus, Upload, Music, 
   Volume2, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard, 
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
-  PlaySquare, Repeat, Settings2, SlidersHorizontal
+  PlaySquare, Repeat, Settings2, SlidersHorizontal, Sparkles
 } from 'lucide-react';
 import TrackInspector from '../components/TrackInspector';
 import MixConsole from '../components/MixConsole';
+import MixExplainer from '../components/MixExplainer';
+import AudioVisualizer from '../components/AudioVisualizer';
+import DSPControls from '../components/DSPControls';
+import VocalEQGuide from '../components/VocalEQGuide';
 
 // ==========================================
 // HELPERS
@@ -369,7 +373,9 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, i
 const EditorPage = () => {
   const { 
     mediaPool, addMediaToPool, tracks, setTracks, 
-    handleMix, isLoading, loadingStage, automationData
+    handleMix, isLoading, loadingStage, automationData,
+    processedAudioUrl, sections, globalSummary, simpleExplanations,
+    eqSettings, setEqSettings
   } = useAudioContext();
   
   const navigate = useNavigate();
@@ -691,10 +697,11 @@ const EditorPage = () => {
 
   const onMixClick = async () => {
     setIsPlaying(false);
-    const success = await handleMix();
-    if (success) {
-      navigate('/dashboard');
-    }
+    await handleMix();
+    // Scroll to results automatically after mixing
+    setTimeout(() => {
+      document.getElementById('mix-results-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   useEffect(() => {
@@ -778,7 +785,7 @@ const EditorPage = () => {
       <div className="flex-1 flex flex-col min-w-[500px] bg-[#141414] relative z-40">
         
         {/* Top Toolbar - Cubase / CapCut style */}
-        <div className="h-10 bg-[#1e1e1e] border-b border-[#2a2a2a] flex items-center justify-between px-3 z-50 relative shadow-sm">
+        <div className="h-10 bg-[#1e1e1e] border-b border-[#2a2a2a] flex items-center justify-between px-3 z-50 relative shadow-sm flex-shrink-0">
           {/* Left: Play/Pause and Tools */}
           <div className="flex items-center gap-1">
             <button 
@@ -857,55 +864,99 @@ const EditorPage = () => {
                 <ZoomIn className="w-3 h-3" />
               </button>
             </div>
-            <button 
-              onClick={onMixClick}
-              disabled={tracks.every(t => t.clips.length === 0)}
-              className="h-7 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded text-xs font-bold transition-all shadow-[0_0_10px_rgba(6,182,212,0.3)] hover:shadow-[0_0_15px_rgba(6,182,212,0.5)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 ml-2"
-            >
-              <Waves className="w-3.5 h-3.5" />
-              Generate XAI Mix <ArrowRight className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
 
-        {/* Unified Scroll Container for Ruler and Tracks */}
-        <div 
-          className="flex-1 overflow-auto relative" 
-          ref={scrollContainerRef}
-        >
-          <div style={{ width: timelineWidth, minHeight: '100%' }} className="relative flex flex-col">
-            
-            {/* Ruler Row (Sticky Top) */}
-            <div className="flex sticky top-0 z-40 bg-[#1a1a1a]">
-              {/* Spacer above track headers (Sticky Left) */}
-              <div className="w-[160px] flex-shrink-0 border-r border-[#2a2a2a] border-b border-[#333] sticky left-0 z-50 bg-[#1a1a1a]" />
-              <div className="flex-1">
-                <TimelineRuler 
-                  zoomLevel={zoomLevel} playheadTime={playheadTime} onClickRuler={handleSeek} timelineWidth={timelineWidth}
-                  isLooping={isLooping} loopLeft={loopLeft} loopRight={loopRight}
-                  onUpdateLoop={(l, r) => { setLoopLeft(l); setLoopRight(r); }}
+        {/* Main Content Area (Unified Scrolling) */}
+        <div className="flex-1 overflow-auto flex flex-col bg-[#0b0f19]">
+          
+          {/* Timeline Section */}
+          <div className="flex-none h-[60vh] relative border-b border-[#2a2a2a]">
+            <div 
+              className="absolute inset-0 overflow-auto" 
+              ref={scrollContainerRef}
+            >
+              <div style={{ width: timelineWidth, minHeight: '100%' }} className="relative flex flex-col bg-[#141414]">
+                
+                {/* Ruler Row (Sticky Top) */}
+                <div className="flex sticky top-0 z-40 bg-[#1a1a1a]">
+                  {/* Spacer above track headers (Sticky Left) */}
+                  <div className="w-[160px] flex-shrink-0 border-r border-[#2a2a2a] border-b border-[#333] sticky left-0 z-50 bg-[#1a1a1a]" />
+                  <div className="flex-1">
+                    <TimelineRuler 
+                      zoomLevel={zoomLevel} playheadTime={playheadTime} onClickRuler={handleSeek} timelineWidth={timelineWidth}
+                      isLooping={isLooping} loopLeft={loopLeft} loopRight={loopRight}
+                      onUpdateLoop={(l, r) => { setLoopLeft(l); setLoopRight(r); }}
+                    />
+                  </div>
+                </div>
+
+                {/* Tracks */}
+                {tracks.map(track => (
+                  <Track 
+                    key={track.id} track={track} onDropMedia={handleDropMedia}
+                    onUpdateClipOffset={handleUpdateClipOffset} onRemoveClip={handleRemoveClip}
+                    zoomLevel={zoomLevel} selectedClipId={selectedClipId} onSelectClip={setSelectedClipId}
+                    onSetPlayhead={handleSeek} clipDurations={clipDurations} clipWsRefs={clipWsRefs}
+                    playheadTime={playheadTime} trackHeight={trackHeight}
+                    onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
+                    onSelectTrack={setSelectedTrackId} isSelectedTrack={selectedTrackId === track.id}
+                  />
+                ))}
+
+                {/* Global Playhead Line (Offset by 160px for the sticky track headers) */}
+                <div 
+                  className="absolute top-0 bottom-0 w-px bg-white z-30 pointer-events-none"
+                  style={{ left: 160 + playheadTime * zoomLevel }}
                 />
               </div>
             </div>
+          </div>
 
-            {/* Tracks */}
-            {tracks.map(track => (
-              <Track 
-                key={track.id} track={track} onDropMedia={handleDropMedia}
-                onUpdateClipOffset={handleUpdateClipOffset} onRemoveClip={handleRemoveClip}
-                zoomLevel={zoomLevel} selectedClipId={selectedClipId} onSelectClip={setSelectedClipId}
-                onSetPlayhead={handleSeek} clipDurations={clipDurations} clipWsRefs={clipWsRefs}
-                playheadTime={playheadTime} trackHeight={trackHeight}
-                onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
-                onSelectTrack={setSelectedTrackId} isSelectedTrack={selectedTrackId === track.id}
-              />
-            ))}
-
-            {/* Global Playhead Line (Offset by 160px for the sticky track headers) */}
-            <div 
-              className="absolute top-0 bottom-0 w-px bg-white z-30 pointer-events-none"
-              style={{ left: 160 + playheadTime * zoomLevel }}
-            />
+          {/* AI Mix Results Section */}
+          <div id="mix-results-section" className="flex-none p-6 min-h-[40vh]">
+            {processedAudioUrl ? (
+              <div className="max-w-5xl mx-auto flex flex-col gap-8">
+                <AudioVisualizer
+                  vocalAudioUrl={mediaPool.find(m => m.type === 'vocal')?.url}
+                  instrumentalAudioUrl={mediaPool.find(m => m.type === 'instrumental')?.url}
+                  processedAudioUrl={processedAudioUrl}
+                  sections={sections}
+                  onSeek={() => {}}
+                />
+                
+                {sections && sections.length > 0 && (
+                  <MixExplainer
+                    sections={sections}
+                    currentTime={0}
+                    globalSummary={globalSummary}
+                    simpleExplanations={simpleExplanations}
+                  />
+                )}
+                
+                {/* DSP Controls & Vocal EQ */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                  <DSPControls />
+                  <VocalEQGuide
+                    eqSettings={eqSettings}
+                    onEqChange={setEqSettings}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500 py-12">
+                <Sparkles className="w-12 h-12 mb-4 opacity-50" />
+                <h3 className="text-xl font-bold text-gray-400 mb-2">No AI Mix Found</h3>
+                <p>Click "Generate XAI Mix" to analyze and mix your tracks.</p>
+                <button
+                  onClick={onMixClick}
+                  disabled={tracks.every(t => t.clips.length === 0)}
+                  className="mt-6 px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)] disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Waves className="w-5 h-5" /> Generate XAI Mix
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

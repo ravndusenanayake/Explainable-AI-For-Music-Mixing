@@ -213,9 +213,10 @@ const SectionCard = ({ section, isActive, isExpanded, onToggle, onSeek }) => {
   );
 };
 
-const MixExplainer = ({ sections, currentTime, onSeek, globalSummary }) => {
+const MixExplainer = ({ sections, currentTime, onSeek, globalSummary, simpleExplanations }) => {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all' | 'significant' | 'adjusted' | 'optimal'
+  const [viewMode, setViewMode] = useState('simple');
   const containerRef = useRef(null);
 
   // Find the currently active section based on playback time
@@ -248,43 +249,34 @@ const MixExplainer = ({ sections, currentTime, onSeek, globalSummary }) => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 px-2">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-xl border border-white/10">
-            <BarChart3 className="w-6 h-6 text-blue-400" />
+            <Sparkles className="w-6 h-6 text-blue-400" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-tight">Bar-by-Bar Mix Analysis</h2>
+            <h2 className="text-2xl font-bold text-white tracking-tight">AI Mix Explanations</h2>
             <p className="text-gray-400 text-sm mt-0.5">
-              {sections.length} sections analyzed • Click any section to hear it
+              Understand exactly what the AI did to your tracks
             </p>
           </div>
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1 bg-black/30 p-1 rounded-full border border-white/5">
-          {[
-            { key: 'all', label: `All (${sections.length})` },
-            { key: 'significant', label: `${stats.significant}`, color: 'rose' },
-            { key: 'adjusted', label: `${stats.adjusted}`, color: 'amber' },
-            { key: 'optimal', label: `${stats.optimal}`, color: 'emerald' },
-          ].map(f => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                filter === f.key
-                  ? 'bg-white/10 text-white'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              {f.color && (
-                <div className={`w-2 h-2 rounded-full ${
-                  f.color === 'rose' ? 'bg-rose-400' :
-                  f.color === 'amber' ? 'bg-amber-400' :
-                  'bg-emerald-400'
-                }`} />
-              )}
-              {f.label}
-            </button>
-          ))}
+        {/* View Mode Toggle */}
+        <div className="flex items-center gap-1 bg-black/30 p-1 rounded-lg border border-white/5">
+          <button
+            onClick={() => setViewMode('simple')}
+            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${
+              viewMode === 'simple' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            Simple View
+          </button>
+          <button
+            onClick={() => setViewMode('advanced')}
+            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${
+              viewMode === 'advanced' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            Advanced View
+          </button>
         </div>
       </div>
 
@@ -314,24 +306,84 @@ const MixExplainer = ({ sections, currentTime, onSeek, globalSummary }) => {
         </motion.div>
       )}
 
-      {/* Section Cards */}
-      <div ref={containerRef} className="flex flex-col gap-3">
-        {filteredSections.map((section) => (
-          <SectionCard
-            key={section.index}
-            section={section}
-            isActive={activeIndex === section.index}
-            isExpanded={expandedIndex === section.index}
-            onToggle={() => setExpandedIndex(expandedIndex === section.index ? null : section.index)}
-            onSeek={onSeek || (() => {})}
-          />
-        ))}
-      </div>
-
-      {filteredSections.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          <p>No sections match the selected filter.</p>
+      {viewMode === 'simple' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {simpleExplanations && simpleExplanations.map((exp, idx) => (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className="bg-black/40 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-all hover:bg-white/[0.02]"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <h3 className="text-white font-bold text-lg">{exp.action}</h3>
+              </div>
+              <p className="text-gray-400 leading-relaxed text-sm">
+                {exp.reason}
+              </p>
+            </motion.div>
+          ))}
+          {(!simpleExplanations || simpleExplanations.length === 0) && (
+            <div className="col-span-2 text-center py-12 text-gray-500">
+              Your mix was already perfectly balanced! The AI did not need to make any adjustments.
+            </div>
+          )}
         </div>
+      ) : (
+        <>
+          {/* Advanced View Filters */}
+          <div className="flex items-center gap-1 bg-black/30 p-1 rounded-full border border-white/5 mb-6 w-fit mx-2">
+            {[
+              { key: 'all', label: `All Sections (${sections.length})` },
+              { key: 'significant', label: `Significant Changes (${stats.significant})`, color: 'rose' },
+              { key: 'adjusted', label: `Minor Tweaks (${stats.adjusted})`, color: 'amber' },
+              { key: 'optimal', label: `Optimal (${stats.optimal})`, color: 'emerald' },
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  filter === f.key
+                    ? 'bg-white/10 text-white'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {f.color && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    f.color === 'rose' ? 'bg-rose-400' :
+                    f.color === 'amber' ? 'bg-amber-400' :
+                    'bg-emerald-400'
+                  }`} />
+                )}
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Section Cards */}
+          <div ref={containerRef} className="flex flex-col gap-3">
+            {filteredSections.map((section) => (
+              <SectionCard
+                key={section.index}
+                section={section}
+                isActive={activeIndex === section.index}
+                isExpanded={expandedIndex === section.index}
+                onToggle={() => setExpandedIndex(expandedIndex === section.index ? null : section.index)}
+                onSeek={onSeek || (() => {})}
+              />
+            ))}
+          </div>
+
+          {filteredSections.length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              <p>No sections match the selected filter.</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

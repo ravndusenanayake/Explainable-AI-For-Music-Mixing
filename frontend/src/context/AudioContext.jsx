@@ -58,7 +58,17 @@ export const AudioProvider = ({ children }) => {
             url: URL.createObjectURL(m.file)
           }));
           setMediaPool(restoredMediaPool);
-          setTracks(saved.tracks);
+          
+          // Re-link files in track clips to avoid missing or detached file references
+          const restoredTracks = saved.tracks.map(track => ({
+            ...track,
+            clips: track.clips.map(clip => {
+              const media = restoredMediaPool.find(m => m.id === clip.mediaId);
+              return { ...clip, file: media ? media.file : clip.file };
+            })
+          }));
+          
+          setTracks(restoredTracks);
         }
       } catch (err) {
         console.error("Failed to load project from IndexedDB", err);
@@ -104,6 +114,7 @@ export const AudioProvider = ({ children }) => {
   const [sections, setSections] = useState([]);
   const [globalSummary, setGlobalSummary] = useState(null);
   const [explanations, setExplanations] = useState([]);
+  const [simpleExplanations, setSimpleExplanations] = useState([]);
   const [automationData, setAutomationData] = useState({}); // Stores AI gain curves per track
 
   // UI state
@@ -134,6 +145,7 @@ export const AudioProvider = ({ children }) => {
     setSections([]);
     setGlobalSummary(null);
     setExplanations([]);
+    setSimpleExplanations([]);
     setAutomationData({});
     setError(null);
     setLoadingStage('');
@@ -201,6 +213,7 @@ export const AudioProvider = ({ children }) => {
       if (data.sections) setSections(data.sections);
       if (data.globalSummary) setGlobalSummary(data.globalSummary);
       if (data.explanations) setExplanations(data.explanations);
+      if (data.simpleExplanations) setSimpleExplanations(data.simpleExplanations);
       if (data.automationData) setAutomationData(data.automationData);
 
       return true;
@@ -252,6 +265,7 @@ export const AudioProvider = ({ children }) => {
       if (data.sections) setSections(data.sections);
       if (data.globalSummary) setGlobalSummary(data.globalSummary);
       if (data.explanations) setExplanations(data.explanations);
+      if (data.simpleExplanations) setSimpleExplanations(data.simpleExplanations);
       if (data.automationData) setAutomationData(data.automationData);
 
       // AutoMix also creates a timeline in the background, but for this quick demo 
@@ -282,6 +296,7 @@ export const AudioProvider = ({ children }) => {
     sections, setSections,
     globalSummary, setGlobalSummary,
     explanations, setExplanations,
+    simpleExplanations, setSimpleExplanations,
     automationData, setAutomationData,
     
     // Actions
