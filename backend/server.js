@@ -1,6 +1,9 @@
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 const { mixTracks } = require('./mixEngine');
 
 const app = express();
@@ -63,6 +66,127 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
       globalSummary: result.globalSummary,
       explanations: result.explanations,
       automationData: result.automationData
+    });
+}));
+
+// ============================================================
+// NEW: 1-Click Auto Mix Endpoint
+// ============================================================
+app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) => {
+    console.log('\n--- New 1-Click Auto Mix Request ---');
+    
+    if (!req.files || req.files.length < 2) {
+        return res.status(400).json({ error: 'Please upload both a vocal and instrumental track.' });
+    }
+
+    let vocalFile = req.files.find(f => f.originalname.toLowerCase().includes('vocal') || f.originalname.toLowerCase().includes('voc'));
+    let instFile = req.files.find(f => f.originalname.toLowerCase().includes('inst') || f.originalname.toLowerCase().includes('beat') || f.originalname.toLowerCase().includes('karaoke')) || req.files.find(f => f !== vocalFile);
+    
+    // If we couldn't match by name, just assume the order from frontend (Vocal first, Inst second)
+    if (!vocalFile || !instFile) {
+        vocalFile = req.files[0];
+        instFile = req.files[1];
+    }
+
+    console.log(`[AutoMix] Vocal: ${vocalFile.originalname}, Instrumental: ${instFile.originalname}`);
+
+    // We need to write them to disk temporarily for the python script
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+    
+    const vocalPath = path.join(tempDir, 'temp_vocal.wav');
+    const instPath = path.join(tempDir, 'temp_inst.wav');
+    
+    fs.writeFileSync(vocalPath, vocalFile.buffer);
+    fs.writeFileSync(instPath, instFile.buffer);
+
+    console.log('[AutoMix] Running Auto-Alignment...');
+    
+    const pythonProcess = spawn('python', ['autoAlign.py', vocalPath, instPath]);
+    
+    let pythonOutput = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+        pythonOutput += data.toString();
+    });
+    
+    pythonProcess.on('close', async (code) => {
+        let delaySeconds = 0;
+        try {
+            const result = JSON.parse(pythonOutput.trim());
+            if (result.success) {
+                delaySeconds = result.delay_seconds;
+                console.log(`[AutoMix] Alignment found! Vocal starts at ${delaySeconds.toFixed(2)}s`);
+            } else {
+                console.log(`[AutoMix] Alignment script returned error: ${result.error}. Defaulting to 0s.`);
+            }
+        } catch (e) {
+            console.error(`[AutoMix] Failed to parse python output: ${pythonOutput}`);
+        }
+        
+        // Clean up temp files
+        fs.unlinkSync(vocalPath);
+        fs.unlinkSync(instPath);
+
+        // Generate Timeline State automatically
+        const timelineState = {
+            tracks: [
+                {
+                    id: 'track_inst',
+                    name: 'Instrumental',
+                    type: 'instrumental',
+                    color: 'blue',
+                    isMuted: false,
+                    isSoloed: false,
+                    volume: 1.0,
+                    clips: [
+                        {
+                            id: 'clip_inst_1',
+                            mediaId: instFile.originalname,
+                            offset: 0,
+                        }
+                    ]
+                },
+                {
+                    id: 'track_vocal',
+                    name: 'Lead Vocal',
+                    type: 'vocal',
+                    color: 'rose',
+                    isMuted: false,
+                    isSoloed: false,
+                    volume: 1.0,
+                    clips: [
+                        {
+                            id: 'clip_voc_1',
+                            mediaId: vocalFile.originalname,
+                            offset: delaySeconds,
+                        }
+                    ]
+                }
+            ]
+        };
+
+        console.log('[AutoMix] Timeline generated, passing to MixEngine...');
+        const mixStartTime = Date.now();
+        
+        timelineState.applyPitch = req.body.applyPitch === 'true';
+
+        // Pass to existing mix engine
+        const mixResult = await mixTracks([instFile, vocalFile], timelineState);
+        
+        const elapsed = ((Date.now() - mixStartTime) / 1000).toFixed(1);
+        console.log(`[AutoMix] Mix complete in ${elapsed}s`);
+
+        const mixedBase64 = `data:audio/wav;base64,${mixResult.mixedAudioBuffer.toString('base64')}`;
+
+        return res.status(200).json({
+          processed_audio_base64: mixedBase64,
+          sections: mixResult.sections,
+          globalSummary: mixResult.globalSummary,
+          explanations: mixResult.explanations,
+          automationData: mixResult.automationData,
+          alignmentDelay: delaySeconds
+        });
     });
 }));
 

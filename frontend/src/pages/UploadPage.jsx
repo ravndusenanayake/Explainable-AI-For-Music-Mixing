@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ArrowRight, Music, Layers, Cpu } from 'lucide-react';
+import { Sparkles, ArrowRight, Layers, Cpu } from 'lucide-react';
 import { useAudioContext } from '../context/AudioContext';
 
 const UploadPage = () => {

@@ -35,13 +35,14 @@ export const AudioProvider = ({ children }) => {
     saturation: { enabled: false, drive: 20 }
   };
 
-  // Array of timeline tracks: { id, name, type, color, clips: [{ id, mediaId, offset }], effects }
   const [tracks, setTracks] = useState([
-    { id: 't1', name: 'Lead Vocal', type: 'vocal', color: 'rose', clips: [], effects: structuredClone(defaultEffects) },
-    { id: 't2', name: 'Backing Vocal', type: 'vocal', color: 'pink', clips: [], effects: structuredClone(defaultEffects) },
-    { id: 't3', name: 'Main Instrumental', type: 'instrumental', color: 'cyan', clips: [], effects: structuredClone(defaultEffects) },
-    { id: 't4', name: 'Drums / Beat', type: 'instrumental', color: 'blue', clips: [], effects: structuredClone(defaultEffects) },
+    { id: 't1', name: 'Lead Vocal', type: 'vocal', color: 'rose', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
+    { id: 't2', name: 'Backing Vocal', type: 'vocal', color: 'pink', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
+    { id: 't3', name: 'Main Instrumental', type: 'instrumental', color: 'cyan', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
+    { id: 't4', name: 'Drums / Beat', type: 'instrumental', color: 'blue', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
   ]);
+
+  const [masterVolume, setMasterVolume] = useState(1);
 
   const [isProjectLoaded, setIsProjectLoaded] = useState(false);
 
@@ -90,6 +91,10 @@ export const AudioProvider = ({ children }) => {
       }
       return t;
     }));
+  };
+
+  const updateTrackPan = (trackId, panValue) => {
+    setTracks(prev => prev.map(t => t.id === trackId ? { ...t, pan: panValue } : t));
   };
 
   // Mixed Output State
@@ -209,12 +214,68 @@ export const AudioProvider = ({ children }) => {
     }
   };
 
+  /**
+   * 1-Click Auto Mix: POST vocal and instrumental directly to /api/automix
+   */
+  const handleAutoMix = async (vocalFile, instFile, applyPitch) => {
+    setIsLoading(true);
+    setError(null);
+    setLoadingStage('Uploading files for Auto Mix...');
+
+    const formData = new FormData();
+    formData.append('files', vocalFile, vocalFile.name);
+    formData.append('files', instFile, instFile.name);
+    formData.append('applyPitch', applyPitch ? 'true' : 'false');
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/automix', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          if (percent < 100) {
+            setLoadingStage(`Uploading data... ${percent}%`);
+          } else {
+            setLoadingStage('AI is calculating alignment and mixing... This may take a moment.');
+          }
+        },
+      });
+
+      const { data } = response;
+
+      setLoadingStage('Rendering results...');
+
+      if (data.processed_audio_base64) {
+        setProcessedAudioUrl(data.processed_audio_base64);
+      }
+      if (data.sections) setSections(data.sections);
+      if (data.globalSummary) setGlobalSummary(data.globalSummary);
+      if (data.explanations) setExplanations(data.explanations);
+      if (data.automationData) setAutomationData(data.automationData);
+
+      // AutoMix also creates a timeline in the background, but for this quick demo 
+      // we'll just show the final result. If we wanted, we could also load the calculated
+      // tracks into the DAW state here.
+      
+      return true;
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.error || err.message || 'An unexpected error occurred during Auto Mix.');
+      return false;
+    } finally {
+      setIsLoading(false);
+      setLoadingStage('');
+    }
+  };
+
   const value = {
     eqSettings, setEqSettings,
     
     // DAW State
     mediaPool, setMediaPool, addMediaToPool,
-    tracks, setTracks, updateTrackEffect,
+    tracks, setTracks, updateTrackEffect, updateTrackPan,
+    masterVolume, setMasterVolume,
     
     // Output
     processedAudioUrl, setProcessedAudioUrl,
@@ -225,6 +286,7 @@ export const AudioProvider = ({ children }) => {
     
     // Actions
     handleMix,
+    handleAutoMix,
     resetContext,
     
     // UI State

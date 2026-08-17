@@ -7,9 +7,10 @@ import {
   Play, Pause, Waves, ArrowRight, Plus, Upload, Music, 
   Volume2, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard, 
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
-  PlaySquare, Repeat, Settings2
+  PlaySquare, Repeat, Settings2, SlidersHorizontal
 } from 'lucide-react';
 import TrackInspector from '../components/TrackInspector';
+import MixConsole from '../components/MixConsole';
 
 // ==========================================
 // HELPERS
@@ -380,6 +381,8 @@ const EditorPage = () => {
   // DAW View State
   const [zoomLevel, setZoomLevel] = useState(50);
   const [trackHeight, setTrackHeight] = useState(72); // Dynamic track height
+  const [showMixer, setShowMixer] = useState(false);
+  const [mixerExpanded, setMixerExpanded] = useState(false);
 
   // Playback State
   const [playheadTime, setPlayheadTime] = useState(0);
@@ -689,6 +692,9 @@ const EditorPage = () => {
   const onMixClick = async () => {
     setIsPlaying(false);
     const success = await handleMix();
+    if (success) {
+      navigate('/dashboard');
+    }
   };
 
   useEffect(() => {
@@ -814,6 +820,14 @@ const EditorPage = () => {
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
+            <div className="w-px h-5 bg-[#333] mx-1" />
+            <button 
+              onClick={() => setShowMixer(!showMixer)}
+              className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${showMixer ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-300 hover:bg-white/10'}`} 
+              title="Toggle MixConsole"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {/* Center: Timecode */}
@@ -843,13 +857,13 @@ const EditorPage = () => {
                 <ZoomIn className="w-3 h-3" />
               </button>
             </div>
-            <button
+            <button 
               onClick={onMixClick}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded text-[11px] font-bold shadow-[0_0_10px_rgba(0,200,255,0.3)] transition-all ml-2"
+              disabled={tracks.every(t => t.clips.length === 0)}
+              className="h-7 px-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded text-xs font-bold transition-all shadow-[0_0_10px_rgba(6,182,212,0.3)] hover:shadow-[0_0_15px_rgba(6,182,212,0.5)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 ml-2"
             >
-              <Waves className="w-3 h-3" />
-              Mix
-              <ArrowRight className="w-3 h-3" />
+              <Waves className="w-3.5 h-3.5" />
+              Generate XAI Mix <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -894,6 +908,14 @@ const EditorPage = () => {
             />
           </div>
         </div>
+
+        {showMixer && (
+          <MixConsole 
+            onClose={() => setShowMixer(false)} 
+            isExpanded={mixerExpanded} 
+            onToggleExpand={() => setMixerExpanded(!mixerExpanded)} 
+          />
+        )}
 
         {/* Bottom Shortcuts Bar */}
         <div className="h-7 bg-[#1a1a1a] border-t border-[#2a2a2a] flex items-center px-3 gap-4 text-[9px] text-gray-500 font-mono flex-shrink-0 z-50 relative">
