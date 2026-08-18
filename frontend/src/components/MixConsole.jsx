@@ -55,7 +55,7 @@ const PanKnob = ({ value, onChange }) => {
 
 const ChannelStrip = ({ track, onVolumeChange, onPanChange, onMute, onSolo }) => {
   return (
-    <div className="w-24 flex-shrink-0 bg-[#1c1c1c] border-r border-[#2a2a2a] flex flex-col items-center pt-4 pb-2 relative h-full">
+    <div className="w-24 flex-shrink-0 bg-[#161616] border-r border-black flex flex-col items-center pt-3 pb-1 relative h-full shadow-[inset_-1px_0_0_rgba(255,255,255,0.02)]">
       
       {/* Pan Control */}
       <PanKnob value={track.pan || 0} onChange={onPanChange} />
@@ -64,13 +64,13 @@ const ChannelStrip = ({ track, onVolumeChange, onPanChange, onMute, onSolo }) =>
       <div className="flex gap-1 mb-4">
         <button 
           onClick={onMute}
-          className={`w-7 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isMuted ? 'bg-yellow-600 border-yellow-500 text-white shadow-[0_0_8px_rgba(202,138,4,0.4)]' : 'bg-[#333] border-[#444] text-gray-400 hover:bg-[#444]'}`}
+          className={`w-7 h-6 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border shadow-inner ${track.isMuted ? 'bg-[#eab308] border-[#ca8a04] text-black' : 'bg-[#1a1a1a] border-[#000] text-[#777] hover:bg-[#222]'}`}
         >
           M
         </button>
         <button 
           onClick={onSolo}
-          className={`w-7 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isSoloed ? 'bg-red-600 border-red-500 text-white shadow-[0_0_8px_rgba(220,38,38,0.4)]' : 'bg-[#333] border-[#444] text-gray-400 hover:bg-[#444]'}`}
+          className={`w-7 h-6 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border shadow-inner ${track.isSoloed ? 'bg-[#ef4444] border-[#dc2626] text-white' : 'bg-[#1a1a1a] border-[#000] text-[#777] hover:bg-[#222]'}`}
         >
           S
         </button>
@@ -106,17 +106,17 @@ const ChannelStrip = ({ track, onVolumeChange, onPanChange, onMute, onSolo }) =>
       </div>
       
       {/* Value Display */}
-      <div className="text-[10px] font-mono text-gray-400 mb-2">
+      <div className="text-[10px] font-mono text-cyan-400/80 mb-2 bg-black px-2 py-0.5 rounded-[2px] border border-[#222]">
         {Math.round((track.volume || 1) * 100)}%
       </div>
 
       {/* Track Label */}
-      <div className="w-full px-2 mt-auto">
-        <div className={`w-full py-1.5 rounded bg-[#222] border border-[#333] flex flex-col items-center overflow-hidden border-b-2 ${
-          track.color === 'cyan' ? 'border-b-cyan-500' :
-          track.color === 'rose' ? 'border-b-rose-500' :
-          track.color === 'pink' ? 'border-b-pink-500' :
-          track.color === 'blue' ? 'border-b-blue-500' : 'border-b-gray-500'
+      <div className="w-full px-1.5 mt-auto">
+        <div className={`w-full py-1 rounded-[2px] bg-[#1a1a1a] border border-black flex flex-col items-center overflow-hidden border-b-[3px] shadow-sm ${
+          track.color === 'cyan' ? 'border-b-cyan-600' :
+          track.color === 'rose' ? 'border-b-rose-600' :
+          track.color === 'pink' ? 'border-b-pink-600' :
+          track.color === 'blue' ? 'border-b-blue-600' : 'border-b-gray-600'
         }`}>
           {trackIcons[track.color]}
           <span className="text-[9px] font-bold text-gray-300 truncate w-full text-center mt-0.5">{track.name}</span>
@@ -191,13 +191,13 @@ const MixConsole = ({ onClose, isExpanded, onToggleExpand }) => {
   };
 
   return (
-    <div className={`w-full bg-[#141414] border-t border-black flex flex-col shadow-[0_-5px_20px_rgba(0,0,0,0.5)] transition-all duration-300 ${isExpanded ? 'h-96' : 'h-64'}`}>
+    <div className={`w-full bg-[#111] border-t-2 border-black flex flex-col shadow-[0_-10px_30px_rgba(0,0,0,0.8)] transition-all duration-300 ${isExpanded ? 'h-96' : 'h-64'} z-50 relative`}>
       
       {/* Mixer Toolbar */}
-      <div className="h-8 bg-[#1e1e1e] border-b border-[#2a2a2a] flex items-center justify-between px-3 flex-shrink-0">
+      <div className="h-8 bg-gradient-to-b from-[#2d2d2d] to-[#222] border-b border-black flex items-center justify-between px-3 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <Volume2 className="w-4 h-4 text-cyan-400" />
-          <span className="text-xs font-bold text-gray-200 tracking-widest uppercase">MixConsole</span>
+          <SlidersHorizontal className="w-4 h-4 text-[#a0a0a0]" />
+          <span className="text-[10px] font-bold text-gray-200 tracking-widest uppercase">MixConsole</span>
         </div>
         <div className="flex items-center gap-1">
           <button onClick={onToggleExpand} className="p-1 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors">
@@ -210,7 +210,7 @@ const MixConsole = ({ onClose, isExpanded, onToggleExpand }) => {
       </div>
 
       {/* Mixer Channels */}
-      <div className="flex-1 overflow-x-auto flex bg-[#1a1a1a]">
+      <div className="flex-1 overflow-x-auto overflow-y-hidden flex bg-[#161616]">
         <div className="flex flex-1 min-w-max">
           {tracks.map(track => (
             <ChannelStrip 
@@ -222,12 +222,12 @@ const MixConsole = ({ onClose, isExpanded, onToggleExpand }) => {
               onSolo={() => handleSoloToggle(track.id)}
             />
           ))}
-          {/* Empty space filler */}
-          <div className="flex-1 min-w-[50px] bg-gradient-to-r from-[#1a1a1a] to-[#111]" />
+          {/* Empty space filler with metal texture look */}
+          <div className="flex-1 min-w-[50px] bg-[repeating-linear-gradient(90deg,#161616,#161616_2px,#181818_2px,#181818_4px)]" />
         </div>
         
         {/* Master Channel Fixed Right */}
-        <div className="sticky right-0">
+        <div className="sticky right-0 h-full border-l-[3px] border-[#0a0a0a]">
           <MasterStrip volume={masterVolume} onVolumeChange={setMasterVolume} />
         </div>
       </div>

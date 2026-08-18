@@ -9,7 +9,6 @@ import {
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
   PlaySquare, Repeat, Settings2, SlidersHorizontal, Sparkles
 } from 'lucide-react';
-import TrackInspector from '../components/TrackInspector';
 import MixConsole from '../components/MixConsole';
 import MixExplainer from '../components/MixExplainer';
 import AudioVisualizer from '../components/AudioVisualizer';
@@ -44,14 +43,14 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
     const url = URL.createObjectURL(clip.file);
     const ws = WaveSurfer.create({
       container: containerRef.current,
-      waveColor: trackColor === 'cyan' || trackColor === 'blue' ? 'rgba(0,200,255,0.6)' : 'rgba(255,120,150,0.6)',
-      progressColor: trackColor === 'cyan' || trackColor === 'blue' ? 'rgba(0,220,255,0.9)' : 'rgba(255,150,180,0.9)',
+      waveColor: 'rgba(255,255,255,0.4)',
+      progressColor: 'rgba(255,255,255,0.9)',
       height: trackHeight - 20, // Leave room for clip header
       normalize: true,
       interact: false,
       barWidth: 2,
       barGap: 1,
-      barRadius: 1,
+      barRadius: 0,
     });
     ws.load(url);
     ws.on('ready', () => {
@@ -81,10 +80,10 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
   const width = clipDuration > 0 ? clipDuration * zoomLevel : 150;
 
   const bgColors = {
-    rose: 'bg-gradient-to-b from-rose-500/40 to-rose-600/20 border-rose-400/60',
-    pink: 'bg-gradient-to-b from-pink-500/40 to-pink-600/20 border-pink-400/60',
-    cyan: 'bg-gradient-to-b from-cyan-500/40 to-cyan-600/20 border-cyan-400/60',
-    blue: 'bg-gradient-to-b from-blue-500/40 to-blue-600/20 border-blue-400/60',
+    rose: 'bg-[#9f1239] border-[#f43f5e]',
+    pink: 'bg-[#831843] border-[#ec4899]',
+    cyan: 'bg-[#164e63] border-[#06b6d4]',
+    blue: 'bg-[#1e3a8a] border-[#3b82f6]',
   };
 
   return (
@@ -111,19 +110,19 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       animate={{ opacity: 1, scale: 1, x: clip.offset * zoomLevel }}
       transition={{ type: 'spring', stiffness: 350, damping: 30, opacity: { duration: 0.15 } }}
       style={{ width }}
-      className={`absolute top-[2px] bottom-[2px] rounded-[4px] cursor-grab active:cursor-grabbing border overflow-hidden group
+      className={`absolute top-[2px] bottom-[2px] rounded-sm cursor-grab active:cursor-grabbing border overflow-hidden group
         ${bgColors[trackColor] || bgColors.cyan}
-        ${isSelected ? 'ring-2 ring-white/90 shadow-[0_0_12px_rgba(255,255,255,0.3)]' : 'shadow-sm'}
+        ${isSelected ? 'border-white ring-1 ring-white z-20' : 'opacity-90'}
       `}
     >
       {/* Clip Header with Name */}
-      <div className="absolute top-0 left-0 right-0 h-[16px] bg-black/50 flex items-center justify-between px-1.5 z-10">
-        <span className="text-[9px] font-bold text-white truncate leading-none">{clip.name}</span>
+      <div className="absolute top-0 left-0 right-0 h-[16px] bg-black/40 flex items-center justify-between px-1.5 z-10 border-b border-black/30">
+        <span className="text-[9px] font-bold text-white/90 truncate leading-none drop-shadow-md">{clip.name}</span>
         <button 
           onClick={(e) => { e.stopPropagation(); onRemove(clip.id); }} 
           className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
         >
-          <Trash2 className="w-2.5 h-2.5" />
+          <Trash2 className="w-2.5 h-2.5 drop-shadow-md" />
         </button>
       </div>
       {/* Waveform */}
@@ -135,8 +134,8 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
         />
       </div>
       {/* Trim handles */}
-      <div className="absolute left-0 top-0 bottom-0 w-1 bg-white/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="absolute right-0 top-0 bottom-0 w-1 bg-white/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-r border-black/20" />
+      <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-l border-black/20" />
     </motion.div>
   );
 };
@@ -174,52 +173,50 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
   };
 
   return (
-    <div style={{ height: trackHeight }} className={`flex border-b border-[#2a2a2a] ${track.isMuted ? 'opacity-40' : ''}`}>
-      {/* Cubase-style Track Header - 160px wide */}
+    <div style={{ height: trackHeight }} className={`flex border-b border-black ${track.isMuted ? 'opacity-50 grayscale-[50%]' : ''}`}>
+      {/* Cubase-style Track Header - 240px wide */}
       <div 
         onClick={() => onSelectTrack(track.id)}
-        className={`w-[160px] flex-shrink-0 border-r border-[#111] flex flex-col justify-center px-2 py-1 z-30 sticky left-0 shadow-[2px_0_4px_rgba(0,0,0,0.3)] cursor-pointer transition-colors ${isSelectedTrack ? 'bg-[#2a2a2a] border-l-2 border-l-cyan-500' : 'bg-[#222222] hover:bg-[#282828] border-l-2 border-l-transparent'}`}
+        className={`w-60 flex-shrink-0 border-r border-black flex flex-col justify-center px-1.5 py-1 z-30 sticky left-0 cursor-pointer transition-colors ${isSelectedTrack ? 'bg-[#333] border-l-4 border-l-cyan-500' : 'bg-[#252525] hover:bg-[#2a2a2a] border-l-4 border-l-transparent'}`}
       >
         
         {/* Top row: Name & Lock */}
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-1 bg-[#1a1a1a] px-1.5 py-1 rounded-[2px] border border-[#111] shadow-inner">
           <div className="flex items-center gap-1.5 min-w-0">
              {trackIcons[track.color]}
              <span className="text-[10px] font-bold text-gray-200 truncate">{track.name}</span>
           </div>
           <button 
             onClick={() => setIsLocked(!isLocked)}
-            className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${isLocked ? 'bg-yellow-500/30 text-yellow-400' : 'text-gray-500 hover:text-gray-300'}`}
+            className={`w-4 h-4 rounded-[2px] flex items-center justify-center transition-colors ${isLocked ? 'bg-yellow-500/30 text-yellow-400' : 'text-[#666] hover:text-gray-300'}`}
           >
             <Lock className="w-2.5 h-2.5" />
           </button>
         </div>
 
-        {/* Middle row: Mute & Solo */}
-        <div className="flex items-center gap-1 mb-2">
+        {/* Middle row: Mute & Solo & Volume */}
+        <div className="flex items-center gap-1 mb-1">
           <button 
             onClick={() => onMuteToggle(track.id)}
-            className={`w-6 h-5 rounded flex items-center justify-center text-[9px] font-bold transition-colors border ${track.isMuted ? 'bg-yellow-600 border-yellow-500 text-white shadow-[0_0_8px_rgba(202,138,4,0.4)]' : 'bg-[#333] border-[#444] text-gray-400 hover:bg-[#444]'}`}
+            className={`w-6 h-5 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isMuted ? 'bg-[#eab308] border-[#ca8a04] text-black shadow-inner' : 'bg-[#1a1a1a] border-[#111] text-[#777] hover:bg-[#222]'}`}
           >
             M
           </button>
           <button 
             onClick={() => onSoloToggle(track.id)}
-            className={`w-6 h-5 rounded flex items-center justify-center text-[9px] font-bold transition-colors border ${track.isSoloed ? 'bg-red-600 border-red-500 text-white shadow-[0_0_8px_rgba(220,38,38,0.4)]' : 'bg-[#333] border-[#444] text-gray-400 hover:bg-[#444]'}`}
+            className={`w-6 h-5 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isSoloed ? 'bg-[#ef4444] border-[#dc2626] text-white shadow-inner' : 'bg-[#1a1a1a] border-[#111] text-[#777] hover:bg-[#222]'}`}
           >
             S
           </button>
-        </div>
-
-        {/* Bottom row: Volume Slider */}
-        <div className="flex items-center gap-1.5 bg-[#1a1a1a] p-1 rounded border border-[#333]">
-          <Volume2 className="w-3 h-3 text-gray-400 flex-shrink-0" />
-          <input 
-            type="range" min="0" max="1" step="0.01" 
-            value={track.volume !== undefined ? track.volume : 1} 
-            onChange={(e) => onVolumeChange(track.id, parseFloat(e.target.value))}
-            className="flex-1 h-1 bg-[#444] rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full cursor-pointer hover:[&::-webkit-slider-thumb]:bg-cyan-400 transition-all"
-          />
+          
+          <div className="flex-1 flex items-center ml-1 bg-[#1a1a1a] p-0.5 rounded-[2px] border border-[#111] shadow-inner">
+            <input 
+              type="range" min="0" max="1" step="0.01" 
+              value={track.volume !== undefined ? track.volume : 1} 
+              onChange={(e) => onVolumeChange(track.id, parseFloat(e.target.value))}
+              className="w-full h-2 bg-black rounded-[1px] appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer hover:[&::-webkit-slider-thumb]:bg-cyan-400"
+            />
+          </div>
         </div>
       </div>
 
@@ -229,8 +226,11 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onPointerDown={handleTrackClick}
-        className="flex-1 relative bg-[#1a1a1a] hover:bg-[#1c1c1c] transition-colors overflow-hidden"
+        className="flex-1 relative bg-[#1c1c1c] hover:bg-[#1f1f1f] transition-colors overflow-hidden group border-r border-[#222]"
       >
+        {/* Subtle grid line visual */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(90deg,#ffffff_1px,transparent_1px)] bg-[length:20px_100%]" />
+        
         {track.clips.map(clip => (
           <Clip 
             key={clip.id} clip={clip} trackColor={track.color} 
@@ -242,8 +242,8 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
           />
         ))}
         {track.clips.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-20 transition-opacity pointer-events-none">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Drop audio here</span>
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white">Drop Audio Here</span>
           </div>
         )}
         {/* Automation Lane overlay */}
@@ -403,6 +403,21 @@ const EditorPage = () => {
   const [clipboard, setClipboard] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
+  
+  // Menu State
+  const [activeMenu, setActiveMenu] = useState(null);
+
+  useEffect(() => {
+    const handleGlobalClick = (e) => {
+      if (!e.target.closest('.daw-menu-container')) {
+        setActiveMenu(null);
+      }
+    };
+    if (activeMenu) {
+      document.addEventListener('mousedown', handleGlobalClick);
+    }
+    return () => document.removeEventListener('mousedown', handleGlobalClick);
+  }, [activeMenu]);
 
   const tracksRef = useRef(tracks);
   useEffect(() => { tracksRef.current = tracks; }, [tracks]);
@@ -562,6 +577,68 @@ const EditorPage = () => {
     setRedoStack(prev => prev.slice(0, -1));
   }, [redoStack, tracks, setTracks]);
 
+  const handleFileUpload = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => addMediaToPool(file));
+  };
+
+  const handleDragStartMedia = (e, mediaId) => {
+    e.dataTransfer.setData('application/json', mediaId);
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleDropMedia = (trackId, mediaId, offset) => {
+    const media = mediaPool.find(m => m.id === mediaId);
+    if (!media) return;
+    pushUndo();
+    setTracks(prev => prev.map(t => {
+      if (t.id === trackId) {
+        return { ...t, clips: [...t.clips, { id: `clip_${Date.now()}`, mediaId, file: media.file, name: media.name, offset }] };
+      }
+      return t;
+    }));
+  };
+
+  const handleUpdateClipOffset = (clipId, newOffset) => {
+    pushUndo();
+    setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.map(c => c.id === clipId ? { ...c, offset: newOffset } : c) })));
+  };
+
+  const handleRemoveClip = useCallback((clipId) => {
+    setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.filter(c => c.id !== clipId) })));
+  }, [setTracks]);
+
+  const handleSplitClip = useCallback((clipId, splitTime) => {
+    setTracks(prev => prev.map(t => {
+      const clipIndex = t.clips.findIndex(c => c.id === clipId);
+      if (clipIndex === -1) return t;
+      const clip = t.clips[clipIndex];
+      const origDuration = clipDurations.current[clip.id] || 999999;
+      const clipTrimStart = clip.trimStartSec || 0;
+      const clipTrimEnd = clip.trimEndSec || origDuration;
+      const clipDur = clipTrimEnd - clipTrimStart;
+      const clipStart = clip.offset;
+      const clipEnd = clip.offset + clipDur;
+      if (splitTime <= clipStart || splitTime >= clipEnd) return t;
+      const splitInsideClip = splitTime - clipStart;
+      const newTrimMidpoint = clipTrimStart + splitInsideClip;
+      const leftClip = { ...clip, trimEndSec: newTrimMidpoint };
+      const rightClip = { ...clip, id: `clip_${Date.now()}_right`, offset: splitTime, trimStartSec: newTrimMidpoint };
+      const newClips = [...t.clips];
+      newClips.splice(clipIndex, 1, leftClip, rightClip);
+      return { ...t, clips: newClips };
+    }));
+  }, [setTracks]);
+
+  const onMixClick = async () => {
+    setIsPlaying(false);
+    await handleMix();
+    // Scroll to results automatically after mixing
+    setTimeout(() => {
+      document.getElementById('mix-results-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -621,7 +698,7 @@ const EditorPage = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedClipId, playheadTime, tracks, clipboard, pushUndo, handleUndo, handleRedo, handleSeek]);
+  }, [selectedClipId, playheadTime, tracks, clipboard, pushUndo, handleUndo, handleRedo, handleSeek, handleRemoveClip, handleSplitClip, setTracks]);
 
   // Ctrl+Scroll Native Zoom (Must use native event to prevent browser page zoom)
   useEffect(() => {
@@ -642,67 +719,7 @@ const EditorPage = () => {
     return () => container.removeEventListener('wheel', handleNativeWheel);
   }, []);
 
-  const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files);
-    files.forEach(file => addMediaToPool(file));
-  };
 
-  const handleDragStartMedia = (e, mediaId) => {
-    e.dataTransfer.setData('application/json', mediaId);
-    e.dataTransfer.effectAllowed = 'copy';
-  };
-
-  const handleDropMedia = (trackId, mediaId, offset) => {
-    const media = mediaPool.find(m => m.id === mediaId);
-    if (!media) return;
-    pushUndo();
-    setTracks(prev => prev.map(t => {
-      if (t.id === trackId) {
-        return { ...t, clips: [...t.clips, { id: `clip_${Date.now()}`, mediaId, file: media.file, name: media.name, offset }] };
-      }
-      return t;
-    }));
-  };
-
-  const handleUpdateClipOffset = (clipId, newOffset) => {
-    pushUndo();
-    setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.map(c => c.id === clipId ? { ...c, offset: newOffset } : c) })));
-  };
-
-  const handleRemoveClip = (clipId) => {
-    setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.filter(c => c.id !== clipId) })));
-  };
-
-  const handleSplitClip = (clipId, splitTime) => {
-    setTracks(prev => prev.map(t => {
-      const clipIndex = t.clips.findIndex(c => c.id === clipId);
-      if (clipIndex === -1) return t;
-      const clip = t.clips[clipIndex];
-      const origDuration = clipDurations.current[clip.id] || 999999;
-      const clipTrimStart = clip.trimStartSec || 0;
-      const clipTrimEnd = clip.trimEndSec || origDuration;
-      const clipDur = clipTrimEnd - clipTrimStart;
-      const clipStart = clip.offset;
-      const clipEnd = clip.offset + clipDur;
-      if (splitTime <= clipStart || splitTime >= clipEnd) return t;
-      const splitInsideClip = splitTime - clipStart;
-      const newTrimMidpoint = clipTrimStart + splitInsideClip;
-      const leftClip = { ...clip, trimEndSec: newTrimMidpoint };
-      const rightClip = { ...clip, id: `clip_${Date.now()}_right`, offset: splitTime, trimStartSec: newTrimMidpoint };
-      const newClips = [...t.clips];
-      newClips.splice(clipIndex, 1, leftClip, rightClip);
-      return { ...t, clips: newClips };
-    }));
-  };
-
-  const onMixClick = async () => {
-    setIsPlaying(false);
-    await handleMix();
-    // Scroll to results automatically after mixing
-    setTimeout(() => {
-      document.getElementById('mix-results-section')?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
 
   useEffect(() => {
     if (automationData) {
@@ -730,20 +747,95 @@ const EditorPage = () => {
   }, 0);
   const timelineWidth = Math.max(800, (maxClipEndSec + 60) * zoomLevel); // Add 60s padding to end
 
+  const menuConfig = {
+    'File': [
+      { label: 'New Project', action: () => { if(window.confirm('Start new project?')) { setTracks([]); navigate('/'); } } },
+      { label: 'Open Project...', action: () => alert('Open Project: Not implemented (Requires backend)') },
+      { divider: true },
+      { label: 'Save', action: () => alert('Save: Not implemented'), shortcut: 'Ctrl+S' },
+      { label: 'Save As...', action: () => alert('Save As: Not implemented') },
+      { divider: true },
+      { label: 'Import Audio...', action: () => fileInputRef.current?.click(), shortcut: 'Ctrl+I' },
+      { label: 'Export Mix...', action: () => alert('Export Mix: Not implemented'), shortcut: 'Ctrl+E' },
+    ],
+    'Edit': [
+      { label: 'Undo', action: handleUndo, shortcut: 'Ctrl+Z' },
+      { label: 'Redo', action: handleRedo, shortcut: 'Ctrl+Y' },
+      { divider: true },
+      { label: 'Cut', action: () => alert('Cut: Not implemented'), shortcut: 'Ctrl+X' },
+      { label: 'Copy', action: () => alert('Copy: Not implemented'), shortcut: 'Ctrl+C' },
+      { label: 'Paste', action: () => alert('Paste: Not implemented'), shortcut: 'Ctrl+V' },
+      { divider: true },
+      { label: 'Delete', action: () => { if(selectedClipId) { pushUndo(); handleRemoveClip(selectedClipId); setSelectedClipId(null); } }, shortcut: 'Del' },
+      { label: 'Split at Playhead', action: () => { if(selectedClipId) { pushUndo(); handleSplitClip(selectedClipId, playheadTime); } }, shortcut: 'Ctrl+B' },
+    ],
+    'Window': [
+      { label: 'Toggle MixConsole', action: () => setShowMixer(!showMixer), shortcut: 'F3' },
+      { label: 'Zoom In', action: () => setZoomLevel(prev => Math.min(200, prev + 10)), shortcut: 'Ctrl++' },
+      { label: 'Zoom Out', action: () => setZoomLevel(prev => Math.max(10, prev - 10)), shortcut: 'Ctrl+-' },
+    ]
+  };
+
   return (
-    <div className="h-screen w-full overflow-x-auto overflow-y-hidden bg-[#141414] text-white">
-      <div className="flex h-full min-w-[1024px]">
+    <div className="h-screen w-full flex flex-col overflow-hidden bg-[#111] text-gray-300 font-sans select-none">
+      
+      {/* DESKTOP MENU BAR */}
+      <div className="h-7 w-full bg-[#202020] border-b border-black flex items-center px-4 z-50 shrink-0">
+        <div className="flex items-center gap-1 text-[11px]">
+          <div className="flex items-center gap-1.5 mr-4" onClick={() => navigate('/')} style={{cursor: 'pointer'}}>
+             <Music className="w-3 h-3 text-cyan-400" />
+             <span className="font-bold text-gray-200 tracking-wide">MIX STUDIO</span>
+          </div>
+          {['File', 'Edit', 'Project', 'Audio', 'MIDI', 'Media', 'Transport', 'Studio', 'Window', 'Help'].map(item => (
+            <div key={item} className="relative daw-menu-container">
+              <span 
+                onMouseDown={() => setActiveMenu(activeMenu === item ? null : item)}
+                onMouseEnter={() => { if (activeMenu && activeMenu !== item) setActiveMenu(item); }}
+                className={`px-2 py-0.5 rounded-[2px] cursor-pointer transition-colors ${activeMenu === item ? 'bg-white/20 text-white' : 'text-[#a0a0a0] hover:bg-white/10 hover:text-white'}`}
+              >
+                {item}
+              </span>
+              
+              {/* Dropdown Menu */}
+              {activeMenu === item && menuConfig[item] && (
+                <div className="absolute top-full left-0 mt-1 w-56 bg-[#1a1a1a] border border-black shadow-xl py-1 z-50 rounded-sm">
+                  {menuConfig[item].map((menuItem, idx) => 
+                    menuItem.divider ? (
+                      <div key={idx} className="h-px w-full bg-black my-1" />
+                    ) : (
+                      <div 
+                        key={idx} 
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          menuItem.action();
+                          setActiveMenu(null);
+                        }}
+                        className="px-4 py-1.5 flex items-center justify-between hover:bg-cyan-600 cursor-pointer group text-gray-200 hover:text-white"
+                      >
+                        <span>{menuItem.label}</span>
+                        {menuItem.shortcut && (
+                          <span className="text-gray-500 group-hover:text-cyan-200 text-[9px]">{menuItem.shortcut}</span>
+                        )}
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 flex min-w-[1024px] overflow-hidden">
         
         {/* LEFT SIDEBAR: Media Pool */}
-        <div className="w-56 flex-shrink-0 bg-[#1a1a1a] border-r border-[#2a2a2a] flex flex-col z-50 relative">
-        <div className="p-3 border-b border-[#2a2a2a] flex items-center justify-between">
-          <h2 className="font-bold text-sm text-gray-300 flex items-center gap-1.5">
-            <Music className="w-3.5 h-3.5 text-cyan-400" />
-            Media
-          </h2>
+        <div className="w-60 flex-shrink-0 bg-[#1e1e1e] border-r border-black flex flex-col z-40 relative shadow-lg">
+        <div className="p-2 border-b border-black bg-gradient-to-b from-[#2d2d2d] to-[#252525] flex items-center justify-between">
+          <h2 className="font-bold text-[10px] text-gray-300 tracking-widest uppercase ml-1">Media Pool</h2>
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="w-7 h-7 rounded bg-cyan-500/20 hover:bg-cyan-500/40 flex items-center justify-center text-cyan-400 transition-colors"
+            className="w-5 h-5 rounded-[2px] bg-cyan-600/30 hover:bg-cyan-500/50 flex items-center justify-center text-cyan-400 transition-colors border border-cyan-700/50"
+            title="Import Media"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
@@ -766,12 +858,12 @@ const EditorPage = () => {
                     animate={{ opacity: 1, x: 0 }}
                     draggable
                     onDragStart={(e) => handleDragStartMedia(e, media.id)}
-                    className="p-2 bg-[#222] hover:bg-[#2a2a2a] rounded cursor-grab active:cursor-grabbing border border-[#333] flex items-center gap-2 transition-colors"
+                    className="p-1.5 bg-[#252525] hover:bg-[#2a2a2a] rounded-[2px] cursor-grab active:cursor-grabbing border border-[#111] flex items-center gap-2 transition-colors mb-0.5 shadow-sm"
                   >
-                    <div className={`w-1.5 h-6 rounded-full ${media.type === 'vocal' ? 'bg-rose-500' : 'bg-cyan-500'}`} />
+                    <div className={`w-1 h-5 rounded-full ${media.type === 'vocal' ? 'bg-rose-500' : 'bg-cyan-500'}`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-semibold text-gray-200 truncate">{media.name}</p>
-                      <p className="text-[9px] text-gray-500 uppercase">{media.type}</p>
+                      <p className="text-[10px] text-gray-200 truncate leading-tight">{media.name}</p>
+                      <p className="text-[9px] text-gray-500 font-bold uppercase leading-tight">{media.type}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -782,64 +874,76 @@ const EditorPage = () => {
       </div>
 
       {/* MAIN ARRANGE WINDOW */}
-      <div className="flex-1 flex flex-col min-w-[500px] bg-[#141414] relative z-40">
+      <div className="flex-1 flex flex-col min-w-[500px] bg-[#141414] relative z-30">
         
-        {/* Top Toolbar - Cubase / CapCut style */}
-        <div className="h-10 bg-[#1e1e1e] border-b border-[#2a2a2a] flex items-center justify-between px-3 z-50 relative shadow-sm flex-shrink-0">
-          {/* Left: Play/Pause and Tools */}
-          <div className="flex items-center gap-1">
-            <button 
-              onClick={() => setIsPlaying(!isPlaying)}
-              className={`w-7 h-7 rounded flex items-center justify-center transition-colors mr-2 ${isPlaying ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-300 hover:bg-white/10'}`}
-              title="Play / Pause (Space)"
-            >
-              {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+        {/* Top Toolbar - Professional DAW style */}
+        <div className="h-10 bg-gradient-to-b from-[#252525] to-[#1e1e1e] border-b border-black flex items-center justify-between px-2 z-50 relative shadow-sm flex-shrink-0">
+          {/* Left: Tools */}
+          <div className="flex items-center gap-0.5">
+            <button onClick={handleUndo} className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${undoStack.length > 0 ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} title="Undo (Ctrl+Z)">
+              <Undo2 className="w-4 h-4" />
             </button>
-            <div className="w-px h-5 bg-[#333] mr-2" />
-            
-            {/* Loop Toggle */}
-            <button 
-              onClick={() => setIsLooping(!isLooping)}
-              className={`w-7 h-7 rounded flex items-center justify-center transition-colors mr-2 ${isLooping ? 'bg-cyan-500 text-black' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
-              title="Cycle/Loop Mode"
-            >
-              <Repeat className="w-4 h-4" />
+            <button onClick={handleRedo} className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${redoStack.length > 0 ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} title="Redo (Ctrl+Y)">
+              <Redo2 className="w-4 h-4" />
             </button>
-
-            <button onClick={handleUndo} className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${undoStack.length > 0 ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600'}`} title="Undo (Ctrl+Z)">
-              <Undo2 className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={handleRedo} className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${redoStack.length > 0 ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600'}`} title="Redo (Ctrl+Y)">
-              <Redo2 className="w-3.5 h-3.5" />
-            </button>
-            <div className="w-px h-5 bg-[#333] mx-1" />
+            <div className="w-px h-6 bg-black mx-2" />
             <button 
               onClick={() => { if (selectedClipId) { pushUndo(); handleSplitClip(selectedClipId, playheadTime); } }}
-              className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${selectedClipId ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600'}`} 
+              className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${selectedClipId ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} 
               title="Split (Ctrl+B)"
             >
-              <Scissors className="w-3.5 h-3.5" />
+              <Scissors className="w-4 h-4" />
             </button>
             <button 
               onClick={() => { if (selectedClipId) { pushUndo(); handleRemoveClip(selectedClipId); setSelectedClipId(null); } }}
-              className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${selectedClipId ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600'}`} 
+              className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${selectedClipId ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} 
               title="Delete (Backspace)"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </button>
-            <div className="w-px h-5 bg-[#333] mx-1" />
+            <div className="w-px h-6 bg-black mx-2" />
             <button 
               onClick={() => setShowMixer(!showMixer)}
-              className={`w-7 h-7 rounded flex items-center justify-center transition-colors ${showMixer ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-300 hover:bg-white/10'}`} 
-              title="Toggle MixConsole"
+              className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors border ${showMixer ? 'bg-cyan-900/40 text-cyan-400 border-cyan-800' : 'text-[#c0c0c0] hover:bg-black/30 border-transparent'}`} 
+              title="Toggle MixConsole (F3)"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <SlidersHorizontal className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Center: Timecode */}
-          <div className="text-[11px] font-mono text-white bg-black/50 px-3 py-1 rounded border border-[#333]">
-            {formatTimecode(playheadTime)}
+          {/* Center: Transport */}
+          <div className="flex items-center bg-[#111] border border-black rounded-[4px] p-0.5 shadow-inner">
+            <button 
+              onClick={() => handleSeek(0)}
+              className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+            </button>
+            <button 
+              onClick={() => setIsPlaying(!isPlaying)}
+              className="w-10 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors"
+            >
+              {isPlaying ? <Pause className="w-4 h-4 text-cyan-400 fill-current" /> : <Play className="w-4 h-4 text-[#c0c0c0] fill-current" />}
+            </button>
+            <button 
+              onClick={() => setIsPlaying(false)}
+              className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+            </button>
+            <button 
+              onClick={() => setIsLooping(!isLooping)}
+              className={`w-8 h-7 flex items-center justify-center rounded-[2px] transition-colors ${isLooping ? 'bg-cyan-600/40 text-cyan-400' : 'text-[#999] hover:text-white hover:bg-[#222]'}`}
+            >
+              <Repeat className="w-4 h-4" />
+            </button>
+            
+            {/* Timecode LED Display */}
+            <div className="ml-2 bg-black border border-[#222] px-3 h-7 flex items-center justify-center rounded-[2px] min-w-[80px]">
+              <span className="font-mono text-cyan-400 text-xs tracking-wider font-bold">
+                {formatTimecode(playheadTime)}
+              </span>
+            </div>
           </div>
           
           {/* Right: Zoom + Mix */}
@@ -980,9 +1084,6 @@ const EditorPage = () => {
           <span>Ctrl+Scroll Zoom</span>
         </div>
       </div>
-      
-      {/* NEW RIGHT SIDEBAR: Track Inspector */}
-      <TrackInspector trackId={selectedTrackId} pushUndo={pushUndo} />
       </div>
     </div>
   );

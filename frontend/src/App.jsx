@@ -29,9 +29,9 @@ function App() {
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<UploadPage />} />
-              <Route path="dashboard" element={<EditorPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
+            <Route path="/dashboard" element={<EditorPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </BrowserRouter>
