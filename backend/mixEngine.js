@@ -78,6 +78,75 @@ function linearToDb(value) {
   return 20 * Math.log10(value);
 }
 
+// ── DSP ALGORITHMS ──
+
+/**
+ * Applies a feedback delay (echo) to a Float32Array buffer.
+ */
+function applyDelay(buffer, sampleRate, timeSec, feedback, mix) {
+  if (mix <= 0) return;
+  console.log(`[DSP] Applying Delay: ${timeSec}s, Feedback: ${feedback}, Mix: ${mix}`);
+  const delayFrames = Math.floor(timeSec * sampleRate);
+  const wetBuffer = new Float32Array(buffer.length);
+  
+  for (let i = 0; i < buffer.length; i++) {
+    wetBuffer[i] = buffer[i];
+    if (i >= delayFrames) {
+      wetBuffer[i] += wetBuffer[i - delayFrames] * feedback;
+    }
+  }
+  
+  // Mix dry and wet
+  for (let i = 0; i < buffer.length; i++) {
+    buffer[i] = buffer[i] * (1 - mix) + wetBuffer[i] * mix;
+  }
+}
+
+/**
+ * Applies a simple Schroeder reverberator (comb filters + all-pass) to a Float32Array buffer.
+ */
+function applyReverb(buffer, sampleRate, mix) {
+  if (mix <= 0) return;
+  console.log(`[DSP] Applying Reverb: Mix: ${mix}`);
+  
+  const wetBuffer = new Float32Array(buffer.length);
+  
+  // 4 parallel comb filters (simulating room reflections)
+  const combDelays = [0.0297, 0.0371, 0.0411, 0.0437].map(d => Math.floor(d * sampleRate));
+  const combFeedback = 0.8;
+  
+  for (const delay of combDelays) {
+    const tempBuffer = new Float32Array(buffer.length);
+    for (let i = 0; i < buffer.length; i++) {
+      tempBuffer[i] = buffer[i];
+      if (i >= delay) {
+        tempBuffer[i] += tempBuffer[i - delay] * combFeedback;
+      }
+      wetBuffer[i] += tempBuffer[i] * 0.25; // average them
+    }
+  }
+  
+  // 2 series all-pass filters (simulating diffusion)
+  const allpassDelays = [0.005, 0.0017].map(d => Math.floor(d * sampleRate));
+  const allpassGain = 0.7;
+  
+  for (const delay of allpassDelays) {
+    const tempBuffer = new Float32Array(wetBuffer.length);
+    for (let i = 0; i < wetBuffer.length; i++) {
+      const x = wetBuffer[i];
+      let delayedY = i >= delay ? tempBuffer[i - delay] : 0;
+      let delayedX = i >= delay ? wetBuffer[i - delay] : 0;
+      tempBuffer[i] = -allpassGain * x + delayedX + allpassGain * delayedY;
+    }
+    wetBuffer.set(tempBuffer);
+  }
+  
+  // Mix dry and wet
+  for (let i = 0; i < buffer.length; i++) {
+    buffer[i] = buffer[i] * (1 - mix) + wetBuffer[i] * mix;
+  }
+}
+
 /**
  * Classify a section based on energy profile.
  */
@@ -168,7 +237,16 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
         vocal_crest: vocal.crestFactor,
         inst_crest: instrumental.crestFactor
       };
-      const output = execSync(`python "${predictScript}" "${JSON.stringify(features).replace(/"/g, '\\"')}"`, { encoding: 'utf-8' });
+      
+      // Use a temporary file to pass features to Python to avoid Windows escaping bugs
+      const tempFeaturesPath = path.join(__dirname, `temp_features_${Date.now()}_${Math.random().toString(36).substring(7)}.json`);
+      fs.writeFileSync(tempFeaturesPath, JSON.stringify(features));
+
+      const output = execSync(`python "${predictScript}" --file "${tempFeaturesPath}"`, { encoding: 'utf-8' });
+      
+      // Clean up temp file
+      if (fs.existsSync(tempFeaturesPath)) fs.unlinkSync(tempFeaturesPath);
+
       const mlDecision = JSON.parse(output.trim());
       if (mlDecision.success) {
         return {
@@ -482,12 +560,13 @@ async function mixTracks(files, timelineState) {
   const instSamples = new Float32Array(maxSamples);
 
   for (const track of timelineState.tracks) {
-    const isVocal = track.type === 'vocal';
-    const targetBuffer = isVocal ? vocalSamples : instSamples;
-
     for (const clip of track.clips) {
       const media = decodedClips[clip.mediaId];
       if (!media) continue;
+
+      // Intelligently route audio based on filename, overriding track lane
+      const isVocalClip = clip.mediaId.toLowerCase().includes('vocal') || clip.mediaId.toLowerCase().includes('voc');
+      const targetBuffer = isVocalClip ? vocalSamples : instSamples;
 
       const clipSamples = media.channelData[0]; // mono
 
@@ -554,6 +633,8 @@ async function mixTracks(files, timelineState) {
       mixing: {
         vocalGainDb: parseFloat(decisions.vocalGainDb.toFixed(1)),
         instrumentalGainDb: parseFloat(decisions.instrumentalGainDb.toFixed(1)),
+        vocalReverbMix: decisions.vocalReverbMix || 0,
+        vocalDelayMix: decisions.vocalDelayMix || 0,
         actions: decisions.actions,
         severity: decisions.severity,
       },
@@ -579,6 +660,55 @@ async function mixTracks(files, timelineState) {
     automationData.vocal.push({ time: parseFloat(endTime.toFixed(2)), gainDb: parseFloat(decisions.vocalGainDb.toFixed(1)) });
     automationData.instrumental.push({ time: parseFloat(endTime.toFixed(2)), gainDb: parseFloat(decisions.instrumentalGainDb.toFixed(1)) });
   }
+
+  // ── Apply AI-Driven DSP (Reverb & Delay) to Vocal Track ──
+  console.log('[MixEngine] Applying AI DSP Effects to vocals...');
+  
+  // Calculate average Reverb and Delay recommended by the AI
+  let avgReverbMix = 0;
+  let avgDelayMix = 0;
+  let dspSectionsCount = 0;
+  
+  sections.forEach(s => {
+    if (s.mixing.vocalReverbMix !== undefined) {
+      avgReverbMix += s.mixing.vocalReverbMix;
+      avgDelayMix += s.mixing.vocalDelayMix;
+      dspSectionsCount++;
+    }
+  });
+  
+  if (dspSectionsCount > 0) {
+    avgReverbMix /= dspSectionsCount;
+    avgDelayMix /= dspSectionsCount;
+    
+    if (avgDelayMix > 0.1) {
+       applyDelay(vocalSamples, outputSampleRate, 0.25, 0.35, avgDelayMix); // 250ms delay, 35% feedback
+       allExplanations.unshift({
+           action: `Applied ${Math.round(avgDelayMix * 100)}% Echo (Delay) to Vocals`,
+           reason: "The AI detected bright/sibilant vocals and added a slapback delay to thicken the sound.",
+           tip: "Delay adds rhythm and depth without muddying the mix like too much reverb can.",
+           section: 'Global', time: 'Entire Track', sectionType: 'AI DSP'
+       });
+    }
+    if (avgReverbMix > 0) {
+       applyReverb(vocalSamples, outputSampleRate, avgReverbMix);
+       allExplanations.unshift({
+           action: `Applied ${Math.round(avgReverbMix * 100)}% Reverb to Vocals`,
+           reason: "The AI added 3D acoustic space to make the vocal sit beautifully in the mix.",
+           tip: "Reverb makes the singer sound like they are in a real room or hall.",
+           section: 'Global', time: 'Entire Track', sectionType: 'AI DSP'
+       });
+    }
+  }
+
+  // Filter out the section-level DSP explanations so they don't spam the UI
+  const filteredExplanations = allExplanations.filter(exp => 
+    !exp.action.includes('Reverb to the Vocals') && !exp.action.includes('Echo (Delay) to the Vocals')
+  );
+  
+  // Replace the array contents while preserving the reference if needed, or just re-assign
+  allExplanations.length = 0;
+  filteredExplanations.forEach(e => allExplanations.push(e));
 
   // ── Step 5: Mix the audio buffers ──
   console.log('[MixEngine] Mixing audio with calculated gains...');

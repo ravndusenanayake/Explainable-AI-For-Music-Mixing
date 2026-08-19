@@ -245,8 +245,10 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
           />
         ))}
         {track.clips.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-white">Drop Audio Here</span>
+          <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:opacity-40 transition-opacity pointer-events-none border-2 border-dashed border-white/20 m-2 rounded-md">
+            <span className="text-[12px] font-bold uppercase tracking-widest text-white">
+              {track.type === 'vocal' ? 'Drop Vocal Here' : 'Drop Beat / Instrumental Here'}
+            </span>
           </div>
         )}
         {/* Automation Lane overlay */}
@@ -980,6 +982,19 @@ const EditorPage = () => {
                   <ZoomIn className="w-3 h-3" />
                 </button>
               </div>
+
+              <button
+                onClick={async () => {
+                  setIsPlaying(false);
+                  await handleMix();
+                  setLowerZoneOpen(true);
+                  setLowerZoneTab('xai');
+                }}
+                className="ml-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(6,182,212,0.5)] transition-all flex items-center gap-2 border border-cyan-400"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                GENERATE AI MIX
+              </button>
             </div>
           </div>
 
