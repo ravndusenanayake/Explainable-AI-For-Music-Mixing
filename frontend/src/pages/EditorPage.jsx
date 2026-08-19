@@ -3,17 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAudioContext } from '../context/AudioContext';
 import { useNavigate } from 'react-router-dom';
 import WaveSurfer from 'wavesurfer.js';
-import { 
-  Play, Pause, Waves, ArrowRight, Plus, Upload, Music, 
-  Volume2, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard, 
+import {
+  Play, Pause, Waves, ArrowRight, Plus, Upload, Music,
+  Volume2, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard,
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
-  PlaySquare, Repeat, Settings2, SlidersHorizontal, Sparkles
+  PlaySquare, Repeat, Settings2, SlidersHorizontal, Sparkles,
+  ChevronUp, ChevronDown, Maximize2, Minimize2, X,
+  Settings, Sliders, Wind, Zap, Disc
 } from 'lucide-react';
 import MixConsole from '../components/MixConsole';
 import MixExplainer from '../components/MixExplainer';
 import AudioVisualizer from '../components/AudioVisualizer';
 import DSPControls from '../components/DSPControls';
 import VocalEQGuide from '../components/VocalEQGuide';
+import TrackInspector from '../components/TrackInspector';
 
 // ==========================================
 // HELPERS
@@ -95,7 +98,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       onPointerDown={(e) => { onSelect(clip.id); e.stopPropagation(); }}
       onDragEnd={(e, info) => {
         let newX = Math.max(0, clip.offset * zoomLevel + info.offset.x);
-        
+
         // Magnetic Snapping: snap clip start to playhead if within 15 pixels
         if (playheadTime !== undefined) {
           const playheadX = playheadTime * zoomLevel;
@@ -103,7 +106,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
             newX = playheadX;
           }
         }
-        
+
         onUpdateOffset(clip.id, newX / zoomLevel);
       }}
       initial={{ opacity: 0, scale: 0.95 }}
@@ -118,8 +121,8 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       {/* Clip Header with Name */}
       <div className="absolute top-0 left-0 right-0 h-[16px] bg-black/40 flex items-center justify-between px-1.5 z-10 border-b border-black/30">
         <span className="text-[9px] font-bold text-white/90 truncate leading-none drop-shadow-md">{clip.name}</span>
-        <button 
-          onClick={(e) => { e.stopPropagation(); onRemove(clip.id); }} 
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(clip.id); }}
           className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
         >
           <Trash2 className="w-2.5 h-2.5 drop-shadow-md" />
@@ -127,10 +130,10 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       </div>
       {/* Waveform */}
       <div className="w-full h-full overflow-hidden relative">
-        <div 
-          ref={containerRef} 
-          className="h-full pt-[16px] absolute top-0" 
-          style={{ left: -trimStart * zoomLevel, width: duration * zoomLevel }} 
+        <div
+          ref={containerRef}
+          className="h-full pt-[16px] absolute top-0"
+          style={{ left: -trimStart * zoomLevel, width: duration * zoomLevel }}
         />
       </div>
       {/* Trim handles */}
@@ -175,18 +178,18 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
   return (
     <div style={{ height: trackHeight }} className={`flex border-b border-black ${track.isMuted ? 'opacity-50 grayscale-[50%]' : ''}`}>
       {/* Cubase-style Track Header - 240px wide */}
-      <div 
+      <div
         onClick={() => onSelectTrack(track.id)}
         className={`w-60 flex-shrink-0 border-r border-black flex flex-col justify-center px-1.5 py-1 z-30 sticky left-0 cursor-pointer transition-colors ${isSelectedTrack ? 'bg-[#333] border-l-4 border-l-cyan-500' : 'bg-[#252525] hover:bg-[#2a2a2a] border-l-4 border-l-transparent'}`}
       >
-        
+
         {/* Top row: Name & Lock */}
         <div className="flex items-center justify-between mb-1 bg-[#1a1a1a] px-1.5 py-1 rounded-[2px] border border-[#111] shadow-inner">
           <div className="flex items-center gap-1.5 min-w-0">
-             {trackIcons[track.color]}
-             <span className="text-[10px] font-bold text-gray-200 truncate">{track.name}</span>
+            {trackIcons[track.color]}
+            <span className="text-[10px] font-bold text-gray-200 truncate">{track.name}</span>
           </div>
-          <button 
+          <button
             onClick={() => setIsLocked(!isLocked)}
             className={`w-4 h-4 rounded-[2px] flex items-center justify-center transition-colors ${isLocked ? 'bg-yellow-500/30 text-yellow-400' : 'text-[#666] hover:text-gray-300'}`}
           >
@@ -196,23 +199,23 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
 
         {/* Middle row: Mute & Solo & Volume */}
         <div className="flex items-center gap-1 mb-1">
-          <button 
+          <button
             onClick={() => onMuteToggle(track.id)}
             className={`w-6 h-5 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isMuted ? 'bg-[#eab308] border-[#ca8a04] text-black shadow-inner' : 'bg-[#1a1a1a] border-[#111] text-[#777] hover:bg-[#222]'}`}
           >
             M
           </button>
-          <button 
+          <button
             onClick={() => onSoloToggle(track.id)}
             className={`w-6 h-5 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isSoloed ? 'bg-[#ef4444] border-[#dc2626] text-white shadow-inner' : 'bg-[#1a1a1a] border-[#111] text-[#777] hover:bg-[#222]'}`}
           >
             S
           </button>
-          
+
           <div className="flex-1 flex items-center ml-1 bg-[#1a1a1a] p-0.5 rounded-[2px] border border-[#111] shadow-inner">
-            <input 
-              type="range" min="0" max="1" step="0.01" 
-              value={track.volume !== undefined ? track.volume : 1} 
+            <input
+              type="range" min="0" max="1" step="0.01"
+              value={track.volume !== undefined ? track.volume : 1}
               onChange={(e) => onVolumeChange(track.id, parseFloat(e.target.value))}
               className="w-full h-2 bg-black rounded-[1px] appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer hover:[&::-webkit-slider-thumb]:bg-cyan-400"
             />
@@ -221,7 +224,7 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
       </div>
 
       {/* Track Arrange Area */}
-      <div 
+      <div
         ref={trackRef}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
@@ -230,12 +233,12 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
       >
         {/* Subtle grid line visual */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(90deg,#ffffff_1px,transparent_1px)] bg-[length:20px_100%]" />
-        
+
         {track.clips.map(clip => (
-          <Clip 
-            key={clip.id} clip={clip} trackColor={track.color} 
-            onUpdateOffset={isLocked ? () => {} : onUpdateClipOffset}
-            onRemove={isLocked ? () => {} : onRemoveClip}
+          <Clip
+            key={clip.id} clip={clip} trackColor={track.color}
+            onUpdateOffset={isLocked ? () => { } : onUpdateClipOffset}
+            onRemove={isLocked ? () => { } : onRemoveClip}
             zoomLevel={zoomLevel} isSelected={selectedClipId === clip.id} onSelect={onSelectClip}
             clipDurations={clipDurations} clipWsRefs={clipWsRefs} playheadTime={playheadTime}
             trackHeight={trackHeight}
@@ -281,12 +284,12 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, i
   const interval = zoomLevel >= 80 ? 1 : zoomLevel >= 40 ? 2 : zoomLevel >= 20 ? 5 : 10;
   const maxSecs = timelineWidth / zoomLevel;
   const totalTicks = Math.max(10, Math.ceil(maxSecs / interval));
-  
+
   const handlePointerDown = (e) => {
     e.preventDefault();
     if (!rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
-    
+
     // Check if clicked on loop markers
     const clickX = e.clientX - rect.left;
     const isClickingLeft = isLooping && Math.abs(clickX - (loopLeft * zoomLevel)) < 10;
@@ -303,21 +306,21 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, i
         onClickRuler(time);
       }
     };
-    
+
     updateTime(e.clientX);
-    
+
     const onPointerMove = (eMove) => updateTime(eMove.clientX);
     const onPointerUp = () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-    
+
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
   };
 
   return (
-    <div 
+    <div
       ref={rulerRef}
       onPointerDown={handlePointerDown}
       className="h-7 bg-[#1a1a1a] border-b border-[#333] relative cursor-pointer select-none"
@@ -325,7 +328,7 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, i
     >
       {/* Loop Region Highlight */}
       {isLooping && (
-        <div 
+        <div
           className="absolute top-0 h-full bg-cyan-500/20 border-t-2 border-cyan-400 z-10"
           style={{ left: loopLeft * zoomLevel, width: (loopRight - loopLeft) * zoomLevel }}
         >
@@ -354,12 +357,12 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, i
       })}
 
       {/* Playhead Handle on Ruler */}
-      <div 
+      <div
         className="absolute top-0 bottom-0 z-50 pointer-events-none"
         style={{ left: playheadTime * zoomLevel - 5.5 }}
       >
         <svg width="11" height="15" viewBox="0 0 11 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto drop-shadow-md">
-          <path d="M1 1H10V8L5.5 14L1 8V1Z" fill="#141414" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
+          <path d="M1 1H10V8L5.5 14L1 8V1Z" fill="#141414" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
         </svg>
         <div className="w-px h-full bg-white mx-auto -mt-px" />
       </div>
@@ -371,13 +374,13 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, i
 // MAIN EDITOR PAGE
 // ==========================================
 const EditorPage = () => {
-  const { 
-    mediaPool, addMediaToPool, tracks, setTracks, 
+  const {
+    mediaPool, addMediaToPool, tracks, setTracks, updateTrackEffect,
     handleMix, isLoading, loadingStage, automationData,
     processedAudioUrl, sections, globalSummary, simpleExplanations,
     eqSettings, setEqSettings
   } = useAudioContext();
-  
+
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -389,6 +392,11 @@ const EditorPage = () => {
   const [trackHeight, setTrackHeight] = useState(72); // Dynamic track height
   const [showMixer, setShowMixer] = useState(false);
   const [mixerExpanded, setMixerExpanded] = useState(false);
+
+  // Lower Zone State
+  const [lowerZoneOpen, setLowerZoneOpen] = useState(false);
+  const [lowerZoneTab, setLowerZoneTab] = useState('fx'); // 'fx' | 'xai' | 'dsp' | 'vocal' | 'mixer'
+  const [lowerZoneHeight, setLowerZoneHeight] = useState(320);
 
   // Playback State
   const [playheadTime, setPlayheadTime] = useState(0);
@@ -403,7 +411,7 @@ const EditorPage = () => {
   const [clipboard, setClipboard] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
-  
+
   // Menu State
   const [activeMenu, setActiveMenu] = useState(null);
 
@@ -458,7 +466,7 @@ const EditorPage = () => {
       const updatePlayhead = () => {
         let elapsed = (performance.now() - startTime) / 1000;
         let currentPlayhead = startPlayhead + elapsed;
-        
+
         let didSeek = false;
         if (seekRequestRef.current !== null) {
           startPlayhead = seekRequestRef.current;
@@ -542,7 +550,7 @@ const EditorPage = () => {
             const clipStart = c.offset;
             const clipDur = (c.trimEndSec || clipDurations.current[c.id] || ws.getDuration()) - (c.trimStartSec || 0);
             const clipEnd = clipStart + clipDur;
-            
+
             if (playheadTime >= clipStart && playheadTime < clipEnd) {
               const totalDur = ws.getDuration();
               if (totalDur > 0) {
@@ -749,7 +757,7 @@ const EditorPage = () => {
 
   const menuConfig = {
     'File': [
-      { label: 'New Project', action: () => { if(window.confirm('Start new project?')) { setTracks([]); navigate('/'); } } },
+      { label: 'New Project', action: () => { if (window.confirm('Start new project?')) { setTracks([]); navigate('/'); } } },
       { label: 'Open Project...', action: () => alert('Open Project: Not implemented (Requires backend)') },
       { divider: true },
       { label: 'Save', action: () => alert('Save: Not implemented'), shortcut: 'Ctrl+S' },
@@ -766,11 +774,15 @@ const EditorPage = () => {
       { label: 'Copy', action: () => alert('Copy: Not implemented'), shortcut: 'Ctrl+C' },
       { label: 'Paste', action: () => alert('Paste: Not implemented'), shortcut: 'Ctrl+V' },
       { divider: true },
-      { label: 'Delete', action: () => { if(selectedClipId) { pushUndo(); handleRemoveClip(selectedClipId); setSelectedClipId(null); } }, shortcut: 'Del' },
-      { label: 'Split at Playhead', action: () => { if(selectedClipId) { pushUndo(); handleSplitClip(selectedClipId, playheadTime); } }, shortcut: 'Ctrl+B' },
+      { label: 'Delete', action: () => { if (selectedClipId) { pushUndo(); handleRemoveClip(selectedClipId); setSelectedClipId(null); } }, shortcut: 'Del' },
+      { label: 'Split at Playhead', action: () => { if (selectedClipId) { pushUndo(); handleSplitClip(selectedClipId, playheadTime); } }, shortcut: 'Ctrl+B' },
     ],
     'Window': [
-      { label: 'Toggle MixConsole', action: () => setShowMixer(!showMixer), shortcut: 'F3' },
+      { label: 'Toggle Lower Zone', action: () => setLowerZoneOpen(!lowerZoneOpen) },
+      { label: 'MixConsole', action: () => { setLowerZoneOpen(true); setLowerZoneTab('mixer'); }, shortcut: 'F3' },
+      { label: 'FX Rack', action: () => { setLowerZoneOpen(true); setLowerZoneTab('fx'); } },
+      { label: 'AI Explainer', action: () => { setLowerZoneOpen(true); setLowerZoneTab('xai'); } },
+      { divider: true },
       { label: 'Zoom In', action: () => setZoomLevel(prev => Math.min(200, prev + 10)), shortcut: 'Ctrl++' },
       { label: 'Zoom Out', action: () => setZoomLevel(prev => Math.max(10, prev - 10)), shortcut: 'Ctrl+-' },
     ]
@@ -778,33 +790,33 @@ const EditorPage = () => {
 
   return (
     <div className="h-screen w-full flex flex-col overflow-hidden bg-[#111] text-gray-300 font-sans select-none">
-      
+
       {/* DESKTOP MENU BAR */}
       <div className="h-7 w-full bg-[#202020] border-b border-black flex items-center px-4 z-50 shrink-0">
         <div className="flex items-center gap-1 text-[11px]">
-          <div className="flex items-center gap-1.5 mr-4" onClick={() => navigate('/')} style={{cursor: 'pointer'}}>
-             <Music className="w-3 h-3 text-cyan-400" />
-             <span className="font-bold text-gray-200 tracking-wide">MIX STUDIO</span>
+          <div className="flex items-center gap-1.5 mr-4" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+            <Music className="w-3 h-3 text-cyan-400" />
+            <span className="font-bold text-gray-200 tracking-wide">MIX STUDIO</span>
           </div>
           {['File', 'Edit', 'Project', 'Audio', 'MIDI', 'Media', 'Transport', 'Studio', 'Window', 'Help'].map(item => (
             <div key={item} className="relative daw-menu-container">
-              <span 
+              <span
                 onMouseDown={() => setActiveMenu(activeMenu === item ? null : item)}
                 onMouseEnter={() => { if (activeMenu && activeMenu !== item) setActiveMenu(item); }}
                 className={`px-2 py-0.5 rounded-[2px] cursor-pointer transition-colors ${activeMenu === item ? 'bg-white/20 text-white' : 'text-[#a0a0a0] hover:bg-white/10 hover:text-white'}`}
               >
                 {item}
               </span>
-              
+
               {/* Dropdown Menu */}
               {activeMenu === item && menuConfig[item] && (
                 <div className="absolute top-full left-0 mt-1 w-56 bg-[#1a1a1a] border border-black shadow-xl py-1 z-50 rounded-sm">
-                  {menuConfig[item].map((menuItem, idx) => 
+                  {menuConfig[item].map((menuItem, idx) =>
                     menuItem.divider ? (
                       <div key={idx} className="h-px w-full bg-black my-1" />
                     ) : (
-                      <div 
-                        key={idx} 
+                      <div
+                        key={idx}
                         onMouseDown={(e) => {
                           e.preventDefault();
                           menuItem.action();
@@ -827,263 +839,472 @@ const EditorPage = () => {
       </div>
 
       <div className="flex-1 flex min-w-[1024px] overflow-hidden">
-        
+
         {/* LEFT SIDEBAR: Media Pool */}
         <div className="w-60 flex-shrink-0 bg-[#1e1e1e] border-r border-black flex flex-col z-40 relative shadow-lg">
-        <div className="p-2 border-b border-black bg-gradient-to-b from-[#2d2d2d] to-[#252525] flex items-center justify-between">
-          <h2 className="font-bold text-[10px] text-gray-300 tracking-widest uppercase ml-1">Media Pool</h2>
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="w-5 h-5 rounded-[2px] bg-cyan-600/30 hover:bg-cyan-500/50 flex items-center justify-center text-cyan-400 transition-colors border border-cyan-700/50"
-            title="Import Media"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-          <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple accept="audio/*" className="hidden" />
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-1.5">
-          {mediaPool.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-4 opacity-40">
-              <Upload className="w-6 h-6 mb-2 text-gray-500" />
-              <p className="text-[10px] text-gray-500">Import audio stems</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1">
-              <AnimatePresence>
-                {mediaPool.map(media => (
-                  <motion.div
-                    key={media.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    draggable
-                    onDragStart={(e) => handleDragStartMedia(e, media.id)}
-                    className="p-1.5 bg-[#252525] hover:bg-[#2a2a2a] rounded-[2px] cursor-grab active:cursor-grabbing border border-[#111] flex items-center gap-2 transition-colors mb-0.5 shadow-sm"
-                  >
-                    <div className={`w-1 h-5 rounded-full ${media.type === 'vocal' ? 'bg-rose-500' : 'bg-cyan-500'}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-gray-200 truncate leading-tight">{media.name}</p>
-                      <p className="text-[9px] text-gray-500 font-bold uppercase leading-tight">{media.type}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* MAIN ARRANGE WINDOW */}
-      <div className="flex-1 flex flex-col min-w-[500px] bg-[#141414] relative z-30">
-        
-        {/* Top Toolbar - Professional DAW style */}
-        <div className="h-10 bg-gradient-to-b from-[#252525] to-[#1e1e1e] border-b border-black flex items-center justify-between px-2 z-50 relative shadow-sm flex-shrink-0">
-          {/* Left: Tools */}
-          <div className="flex items-center gap-0.5">
-            <button onClick={handleUndo} className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${undoStack.length > 0 ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} title="Undo (Ctrl+Z)">
-              <Undo2 className="w-4 h-4" />
-            </button>
-            <button onClick={handleRedo} className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${redoStack.length > 0 ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} title="Redo (Ctrl+Y)">
-              <Redo2 className="w-4 h-4" />
-            </button>
-            <div className="w-px h-6 bg-black mx-2" />
-            <button 
-              onClick={() => { if (selectedClipId) { pushUndo(); handleSplitClip(selectedClipId, playheadTime); } }}
-              className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${selectedClipId ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} 
-              title="Split (Ctrl+B)"
+          <div className="p-2 border-b border-black bg-gradient-to-b from-[#2d2d2d] to-[#252525] flex items-center justify-between">
+            <h2 className="font-bold text-[10px] text-gray-300 tracking-widest uppercase ml-1">Media Pool</h2>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-5 h-5 rounded-[2px] bg-cyan-600/30 hover:bg-cyan-500/50 flex items-center justify-center text-cyan-400 transition-colors border border-cyan-700/50"
+              title="Import Media"
             >
-              <Scissors className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
             </button>
-            <button 
-              onClick={() => { if (selectedClipId) { pushUndo(); handleRemoveClip(selectedClipId); setSelectedClipId(null); } }}
-              className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${selectedClipId ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} 
-              title="Delete (Backspace)"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-            <div className="w-px h-6 bg-black mx-2" />
-            <button 
-              onClick={() => setShowMixer(!showMixer)}
-              className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors border ${showMixer ? 'bg-cyan-900/40 text-cyan-400 border-cyan-800' : 'text-[#c0c0c0] hover:bg-black/30 border-transparent'}`} 
-              title="Toggle MixConsole (F3)"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
+            <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple accept="audio/*" className="hidden" />
           </div>
 
-          {/* Center: Transport */}
-          <div className="flex items-center bg-[#111] border border-black rounded-[4px] p-0.5 shadow-inner">
-            <button 
-              onClick={() => handleSeek(0)}
-              className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
-            </button>
-            <button 
-              onClick={() => setIsPlaying(!isPlaying)}
-              className="w-10 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors"
-            >
-              {isPlaying ? <Pause className="w-4 h-4 text-cyan-400 fill-current" /> : <Play className="w-4 h-4 text-[#c0c0c0] fill-current" />}
-            </button>
-            <button 
-              onClick={() => setIsPlaying(false)}
-              className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
-            </button>
-            <button 
-              onClick={() => setIsLooping(!isLooping)}
-              className={`w-8 h-7 flex items-center justify-center rounded-[2px] transition-colors ${isLooping ? 'bg-cyan-600/40 text-cyan-400' : 'text-[#999] hover:text-white hover:bg-[#222]'}`}
-            >
-              <Repeat className="w-4 h-4" />
-            </button>
-            
-            {/* Timecode LED Display */}
-            <div className="ml-2 bg-black border border-[#222] px-3 h-7 flex items-center justify-center rounded-[2px] min-w-[80px]">
-              <span className="font-mono text-cyan-400 text-xs tracking-wider font-bold">
-                {formatTimecode(playheadTime)}
-              </span>
-            </div>
-          </div>
-          
-          {/* Right: Zoom + Mix */}
-          <div className="flex items-center gap-2">
-            
-            {/* Vertical Track Height Slider */}
-            <div className="flex items-center gap-1.5 bg-black/30 rounded px-2 py-1 border border-[#2a2a2a]">
-              <Settings2 className="w-3 h-3 text-gray-500" />
-              <input 
-                type="range" min="40" max="150" value={trackHeight} onChange={(e) => setTrackHeight(parseInt(e.target.value))}
-                className="w-16 h-1 bg-[#444] rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-gray-300 [&::-webkit-slider-thumb]:rounded-full cursor-pointer"
-                title="Track Height"
-              />
-            </div>
-
-            <div className="flex items-center gap-1 bg-black/30 rounded px-1 border border-[#2a2a2a]">
-              <button onClick={() => setZoomLevel(prev => Math.max(10, prev - 10))} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white">
-                <ZoomOut className="w-3 h-3" />
-              </button>
-              <span className="text-[9px] font-mono text-gray-400 w-8 text-center">{zoomLevel}%</span>
-              <button onClick={() => setZoomLevel(prev => Math.min(200, prev + 10))} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white">
-                <ZoomIn className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content Area (Unified Scrolling) */}
-        <div className="flex-1 overflow-auto flex flex-col bg-[#0b0f19]">
-          
-          {/* Timeline Section */}
-          <div className="flex-none h-[60vh] relative border-b border-[#2a2a2a]">
-            <div 
-              className="absolute inset-0 overflow-auto" 
-              ref={scrollContainerRef}
-            >
-              <div style={{ width: timelineWidth, minHeight: '100%' }} className="relative flex flex-col bg-[#141414]">
-                
-                {/* Ruler Row (Sticky Top) */}
-                <div className="flex sticky top-0 z-40 bg-[#1a1a1a]">
-                  {/* Spacer above track headers (Sticky Left) */}
-                  <div className="w-[160px] flex-shrink-0 border-r border-[#2a2a2a] border-b border-[#333] sticky left-0 z-50 bg-[#1a1a1a]" />
-                  <div className="flex-1">
-                    <TimelineRuler 
-                      zoomLevel={zoomLevel} playheadTime={playheadTime} onClickRuler={handleSeek} timelineWidth={timelineWidth}
-                      isLooping={isLooping} loopLeft={loopLeft} loopRight={loopRight}
-                      onUpdateLoop={(l, r) => { setLoopLeft(l); setLoopRight(r); }}
-                    />
-                  </div>
-                </div>
-
-                {/* Tracks */}
-                {tracks.map(track => (
-                  <Track 
-                    key={track.id} track={track} onDropMedia={handleDropMedia}
-                    onUpdateClipOffset={handleUpdateClipOffset} onRemoveClip={handleRemoveClip}
-                    zoomLevel={zoomLevel} selectedClipId={selectedClipId} onSelectClip={setSelectedClipId}
-                    onSetPlayhead={handleSeek} clipDurations={clipDurations} clipWsRefs={clipWsRefs}
-                    playheadTime={playheadTime} trackHeight={trackHeight}
-                    onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
-                    onSelectTrack={setSelectedTrackId} isSelectedTrack={selectedTrackId === track.id}
-                  />
-                ))}
-
-                {/* Global Playhead Line (Offset by 160px for the sticky track headers) */}
-                <div 
-                  className="absolute top-0 bottom-0 w-px bg-white z-30 pointer-events-none"
-                  style={{ left: 160 + playheadTime * zoomLevel }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* AI Mix Results Section */}
-          <div id="mix-results-section" className="flex-none p-6 min-h-[40vh]">
-            {processedAudioUrl ? (
-              <div className="max-w-5xl mx-auto flex flex-col gap-8">
-                <AudioVisualizer
-                  vocalAudioUrl={mediaPool.find(m => m.type === 'vocal')?.url}
-                  instrumentalAudioUrl={mediaPool.find(m => m.type === 'instrumental')?.url}
-                  processedAudioUrl={processedAudioUrl}
-                  sections={sections}
-                  onSeek={() => {}}
-                />
-                
-                {sections && sections.length > 0 && (
-                  <MixExplainer
-                    sections={sections}
-                    currentTime={0}
-                    globalSummary={globalSummary}
-                    simpleExplanations={simpleExplanations}
-                  />
-                )}
-                
-                {/* DSP Controls & Vocal EQ */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                  <DSPControls />
-                  <VocalEQGuide
-                    eqSettings={eqSettings}
-                    onEqChange={setEqSettings}
-                  />
-                </div>
+          <div className="flex-1 overflow-y-auto p-1.5">
+            {mediaPool.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center p-4 opacity-40">
+                <Upload className="w-6 h-6 mb-2 text-gray-500" />
+                <p className="text-[10px] text-gray-500">Import audio stems</p>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-gray-500 py-12">
-                <Sparkles className="w-12 h-12 mb-4 opacity-50" />
-                <h3 className="text-xl font-bold text-gray-400 mb-2">No AI Mix Found</h3>
-                <p>Click "Generate XAI Mix" to analyze and mix your tracks.</p>
-                <button
-                  onClick={onMixClick}
-                  disabled={tracks.every(t => t.clips.length === 0)}
-                  className="mt-6 px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)] disabled:opacity-50 flex items-center gap-2"
-                >
-                  <Waves className="w-5 h-5" /> Generate XAI Mix
-                </button>
+              <div className="flex flex-col gap-1">
+                <AnimatePresence>
+                  {mediaPool.map(media => (
+                    <motion.div
+                      key={media.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      draggable
+                      onDragStart={(e) => handleDragStartMedia(e, media.id)}
+                      className="p-1.5 bg-[#252525] hover:bg-[#2a2a2a] rounded-[2px] cursor-grab active:cursor-grabbing border border-[#111] flex items-center gap-2 transition-colors mb-0.5 shadow-sm"
+                    >
+                      <div className={`w-1 h-5 rounded-full ${media.type === 'vocal' ? 'bg-rose-500' : 'bg-cyan-500'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-gray-200 truncate leading-tight">{media.name}</p>
+                        <p className="text-[9px] text-gray-500 font-bold uppercase leading-tight">{media.type}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
             )}
           </div>
         </div>
 
-        {showMixer && (
-          <MixConsole 
-            onClose={() => setShowMixer(false)} 
-            isExpanded={mixerExpanded} 
-            onToggleExpand={() => setMixerExpanded(!mixerExpanded)} 
-          />
-        )}
+        {/* MAIN ARRANGE WINDOW */}
+        <div className="flex-1 flex flex-col min-w-[500px] bg-[#141414] relative z-30">
 
-        {/* Bottom Shortcuts Bar */}
-        <div className="h-7 bg-[#1a1a1a] border-t border-[#2a2a2a] flex items-center px-3 gap-4 text-[9px] text-gray-500 font-mono flex-shrink-0 z-50 relative">
-          <span>Space Play/Pause</span>
-          <span>Ctrl+B Split</span>
-          <span>Del Remove</span>
-          <span>Ctrl+C Copy</span>
-          <span>Ctrl+V Paste</span>
-          <span>Ctrl+Z Undo</span>
-          <span>Ctrl+Y Redo</span>
-          <span>Ctrl+Scroll Zoom</span>
+          {/* Top Toolbar - Professional DAW style */}
+          <div className="h-10 bg-gradient-to-b from-[#252525] to-[#1e1e1e] border-b border-black flex items-center justify-between px-2 z-50 relative shadow-sm flex-shrink-0">
+            {/* Left: Tools */}
+            <div className="flex items-center gap-0.5">
+              <button onClick={handleUndo} className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${undoStack.length > 0 ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} title="Undo (Ctrl+Z)">
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button onClick={handleRedo} className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${redoStack.length > 0 ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`} title="Redo (Ctrl+Y)">
+                <Redo2 className="w-4 h-4" />
+              </button>
+              <div className="w-px h-6 bg-black mx-2" />
+              <button
+                onClick={() => { if (selectedClipId) { pushUndo(); handleSplitClip(selectedClipId, playheadTime); } }}
+                className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${selectedClipId ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`}
+                title="Split (Ctrl+B)"
+              >
+                <Scissors className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => { if (selectedClipId) { pushUndo(); handleRemoveClip(selectedClipId); setSelectedClipId(null); } }}
+                className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors ${selectedClipId ? 'text-[#c0c0c0] hover:bg-black/30' : 'text-[#555]'}`}
+                title="Delete (Backspace)"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <div className="w-px h-6 bg-black mx-2" />
+              <button
+                onClick={() => { setLowerZoneOpen(true); setLowerZoneTab('mixer'); }}
+                className={`w-8 h-8 rounded-[3px] flex items-center justify-center transition-colors border ${(lowerZoneOpen && lowerZoneTab === 'mixer') ? 'bg-cyan-900/40 text-cyan-400 border-cyan-800' : 'text-[#c0c0c0] hover:bg-black/30 border-transparent'}`}
+                title="Toggle MixConsole (F3)"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Center: Transport */}
+            <div className="flex items-center bg-[#111] border border-black rounded-[4px] p-0.5 shadow-inner">
+              <button
+                onClick={() => handleSeek(0)}
+                className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+              </button>
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="w-10 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors"
+              >
+                {isPlaying ? <Pause className="w-4 h-4 text-cyan-400 fill-current" /> : <Play className="w-4 h-4 text-[#c0c0c0] fill-current" />}
+              </button>
+              <button
+                onClick={() => setIsPlaying(false)}
+                className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+              </button>
+              <button
+                onClick={() => setIsLooping(!isLooping)}
+                className={`w-8 h-7 flex items-center justify-center rounded-[2px] transition-colors ${isLooping ? 'bg-cyan-600/40 text-cyan-400' : 'text-[#999] hover:text-white hover:bg-[#222]'}`}
+              >
+                <Repeat className="w-4 h-4" />
+              </button>
+
+              {/* Timecode LED Display */}
+              <div className="ml-2 bg-black border border-[#222] px-3 h-7 flex items-center justify-center rounded-[2px] min-w-[80px]">
+                <span className="font-mono text-cyan-400 text-xs tracking-wider font-bold">
+                  {formatTimecode(playheadTime)}
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Zoom + Mix */}
+            <div className="flex items-center gap-2">
+
+              {/* Vertical Track Height Slider */}
+              <div className="flex items-center gap-1.5 bg-black/30 rounded px-2 py-1 border border-[#2a2a2a]">
+                <Settings2 className="w-3 h-3 text-gray-500" />
+                <input
+                  type="range" min="40" max="150" value={trackHeight} onChange={(e) => setTrackHeight(parseInt(e.target.value))}
+                  className="w-16 h-1 bg-[#444] rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-gray-300 [&::-webkit-slider-thumb]:rounded-full cursor-pointer"
+                  title="Track Height"
+                />
+              </div>
+
+              <div className="flex items-center gap-1 bg-black/30 rounded px-1 border border-[#2a2a2a]">
+                <button onClick={() => setZoomLevel(prev => Math.max(10, prev - 10))} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white">
+                  <ZoomOut className="w-3 h-3" />
+                </button>
+                <span className="text-[9px] font-mono text-gray-400 w-8 text-center">{zoomLevel}%</span>
+                <button onClick={() => setZoomLevel(prev => Math.min(200, prev + 10))} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white">
+                  <ZoomIn className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-hidden flex flex-row bg-[#141414] relative">
+
+            <div className="flex-1 overflow-hidden flex flex-col relative min-w-0">
+              {/* Timeline Section - Takes remaining space */}
+              <div className="flex-1 relative overflow-hidden">
+                <div
+                  className="absolute inset-0 overflow-auto"
+                  ref={scrollContainerRef}
+                >
+                  <div style={{ width: timelineWidth, minHeight: '100%' }} className="relative flex flex-col bg-[#141414]">
+
+                    {/* Ruler Row (Sticky Top) */}
+                    <div className="flex sticky top-0 z-40 bg-[#1a1a1a]">
+                      {/* Spacer above track headers (Sticky Left) */}
+                      <div className="w-60 flex-shrink-0 border-r border-black border-b border-b-[#333] sticky left-0 z-50 bg-[#1e1e1e]" />
+                      <div className="flex-1">
+                        <TimelineRuler
+                          zoomLevel={zoomLevel} playheadTime={playheadTime} onClickRuler={handleSeek} timelineWidth={timelineWidth}
+                          isLooping={isLooping} loopLeft={loopLeft} loopRight={loopRight}
+                          onUpdateLoop={(l, r) => { setLoopLeft(l); setLoopRight(r); }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tracks */}
+                    {tracks.map(track => (
+                      <Track
+                        key={track.id} track={track} onDropMedia={handleDropMedia}
+                        onUpdateClipOffset={handleUpdateClipOffset} onRemoveClip={handleRemoveClip}
+                        zoomLevel={zoomLevel} selectedClipId={selectedClipId} onSelectClip={setSelectedClipId}
+                        onSetPlayhead={handleSeek} clipDurations={clipDurations} clipWsRefs={clipWsRefs}
+                        playheadTime={playheadTime} trackHeight={trackHeight}
+                        onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
+                        onSelectTrack={setSelectedTrackId} isSelectedTrack={selectedTrackId === track.id}
+                      />
+                    ))}
+
+                    {/* Global Playhead Line */}
+                    <div
+                      className="absolute top-0 bottom-0 w-px bg-white z-30 pointer-events-none"
+                      style={{ left: 240 + playheadTime * zoomLevel }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ============================================ */}
+              {/* LOWER ZONE - Cubase-style tabbed bottom panel */}
+              {/* ============================================ */}
+              {lowerZoneOpen && (
+                <div
+                  className="flex-shrink-0 border-t-2 border-black bg-[#111] flex flex-col z-40 relative shadow-[0_-8px_30px_rgba(0,0,0,0.6)]"
+                  style={{ height: lowerZoneHeight }}
+                >
+                  {/* Tab Bar */}
+                  <div className="h-8 bg-gradient-to-b from-[#2d2d2d] to-[#222] border-b border-black flex items-center justify-between px-1 flex-shrink-0">
+                    <div className="flex items-center gap-0">
+                      {[
+                        { id: 'fx', label: 'FX Rack', icon: <Settings className="w-3 h-3" /> },
+                        { id: 'mixer', label: 'MixConsole', icon: <SlidersHorizontal className="w-3 h-3" /> },
+                        { id: 'xai', label: 'AI Explainer', icon: <Sparkles className="w-3 h-3" /> },
+                        { id: 'dsp', label: 'DSP Controls', icon: <Sliders className="w-3 h-3" /> },
+                        { id: 'vocal', label: 'Vocal Chain', icon: <Mic className="w-3 h-3" /> },
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setLowerZoneTab(tab.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors border-b-2 ${lowerZoneTab === tab.id
+                              ? 'text-cyan-400 border-b-cyan-500 bg-black/20'
+                              : 'text-[#888] border-b-transparent hover:text-white hover:bg-white/5'
+                            }`}
+                        >
+                          {tab.icon}
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setLowerZoneHeight(prev => prev === 320 ? 500 : 320)}
+                        className="p-1 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors"
+                      >
+                        {lowerZoneHeight > 320 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => setLowerZoneOpen(false)}
+                        className="p-1 text-gray-400 hover:text-red-400 hover:bg-white/10 rounded transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tab Content */}
+                  <div className="flex-1 overflow-auto">
+
+                    {/* FX RACK TAB */}
+                    {lowerZoneTab === 'fx' && (() => {
+                      const track = tracks.find(t => t.id === selectedTrackId);
+                      if (!track || !track.effects) {
+                        return (
+                          <div className="flex items-center justify-center h-full text-gray-500 text-xs">
+                            <div className="text-center">
+                              <Settings className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                              <p>Select a track to view its effect rack</p>
+                            </div>
+                          </div>
+                        );
+                      }
+                      const { effects } = track;
+                      const update = (effectKey, updates) => updateTrackEffect(track.id, effectKey, updates);
+                      return (
+                        <div className="p-3">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Settings className="w-4 h-4 text-cyan-400" />
+                            <span className="text-xs font-bold text-gray-200 uppercase tracking-wider">{track.name} — Insert Effects</span>
+                          </div>
+                          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
+
+                            {/* EQ */}
+                            <div className="bg-[#1a1a1a] border border-black rounded-sm p-2.5">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-gray-300 flex items-center gap-1"><Sliders className="w-3 h-3 text-rose-400" /> EQ</span>
+                                <button onClick={() => { pushUndo(); update('eq', { enabled: !effects.eq?.enabled }); }} className={`w-7 h-4 rounded-full relative transition-colors ${effects.eq?.enabled ? 'bg-cyan-500' : 'bg-gray-600'}`}>
+                                  <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all ${effects.eq?.enabled ? 'left-3.5' : 'left-0.5'}`} />
+                                </button>
+                              </div>
+                              <div className="text-[9px] text-gray-500 mt-1">Parametric equalizer for tone shaping</div>
+                            </div>
+
+                            {/* De-Esser */}
+                            <div className="bg-[#1a1a1a] border border-black rounded-sm p-2.5">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-gray-300 flex items-center gap-1"><Wind className="w-3 h-3 text-cyan-400" /> De-Esser</span>
+                                <button onClick={() => { pushUndo(); update('deEsser', { enabled: !effects.deEsser.enabled }); }} className={`w-7 h-4 rounded-full relative transition-colors ${effects.deEsser.enabled ? 'bg-cyan-500' : 'bg-gray-600'}`}>
+                                  <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all ${effects.deEsser.enabled ? 'left-3.5' : 'left-0.5'}`} />
+                                </button>
+                              </div>
+                              {effects.deEsser.enabled && (
+                                <div>
+                                  <div className="flex justify-between text-[9px] text-gray-400 font-mono"><span>Amount</span><span>{effects.deEsser.amount}%</span></div>
+                                  <input type="range" min={0} max={100} step={1} value={effects.deEsser.amount} onChange={(e) => { pushUndo(); update('deEsser', { amount: parseFloat(e.target.value) }); }} className="w-full h-1 bg-black rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Compressor */}
+                            <div className="bg-[#1a1a1a] border border-black rounded-sm p-2.5">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-gray-300 flex items-center gap-1"><Zap className="w-3 h-3 text-yellow-400" /> Compressor</span>
+                                <button onClick={() => { pushUndo(); update('compressor', { enabled: !effects.compressor.enabled }); }} className={`w-7 h-4 rounded-full relative transition-colors ${effects.compressor.enabled ? 'bg-cyan-500' : 'bg-gray-600'}`}>
+                                  <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all ${effects.compressor.enabled ? 'left-3.5' : 'left-0.5'}`} />
+                                </button>
+                              </div>
+                              {effects.compressor.enabled && (
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-[9px] text-gray-400 font-mono"><span>Threshold</span><span>{effects.compressor.threshold}dB</span></div>
+                                  <input type="range" min={-40} max={0} step={0.5} value={effects.compressor.threshold} onChange={(e) => { pushUndo(); update('compressor', { threshold: parseFloat(e.target.value) }); }} className="w-full h-1 bg-black rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer" />
+                                  <div className="flex justify-between text-[9px] text-gray-400 font-mono"><span>Ratio</span><span>{effects.compressor.ratio}:1</span></div>
+                                  <input type="range" min={1} max={10} step={0.1} value={effects.compressor.ratio} onChange={(e) => { pushUndo(); update('compressor', { ratio: parseFloat(e.target.value) }); }} className="w-full h-1 bg-black rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Reverb */}
+                            <div className="bg-[#1a1a1a] border border-black rounded-sm p-2.5">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-gray-300 flex items-center gap-1"><Waves className="w-3 h-3 text-blue-400" /> Reverb</span>
+                                <button onClick={() => { pushUndo(); update('reverb', { enabled: !effects.reverb.enabled }); }} className={`w-7 h-4 rounded-full relative transition-colors ${effects.reverb.enabled ? 'bg-cyan-500' : 'bg-gray-600'}`}>
+                                  <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all ${effects.reverb.enabled ? 'left-3.5' : 'left-0.5'}`} />
+                                </button>
+                              </div>
+                              {effects.reverb.enabled && (
+                                <div className="space-y-1">
+                                  <select value={effects.reverb.type} onChange={(e) => { pushUndo(); update('reverb', { type: e.target.value }); }} className="w-full bg-black border border-[#333] rounded-[2px] text-[10px] text-gray-200 p-1 outline-none focus:border-cyan-500">
+                                    <option value="room">Room</option>
+                                    <option value="plate">Plate</option>
+                                    <option value="hall">Hall</option>
+                                    <option value="valhalla">Valhalla</option>
+                                  </select>
+                                  <div className="flex justify-between text-[9px] text-gray-400 font-mono"><span>Mix</span><span>{effects.reverb.mix}%</span></div>
+                                  <input type="range" min={0} max={100} step={1} value={effects.reverb.mix} onChange={(e) => { pushUndo(); update('reverb', { mix: parseFloat(e.target.value) }); }} className="w-full h-1 bg-black rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Delay */}
+                            <div className="bg-[#1a1a1a] border border-black rounded-sm p-2.5">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-gray-300 flex items-center gap-1"><Waves className="w-3 h-3 text-purple-400" /> Delay</span>
+                                <button onClick={() => { pushUndo(); update('delay', { enabled: !effects.delay.enabled }); }} className={`w-7 h-4 rounded-full relative transition-colors ${effects.delay.enabled ? 'bg-cyan-500' : 'bg-gray-600'}`}>
+                                  <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all ${effects.delay.enabled ? 'left-3.5' : 'left-0.5'}`} />
+                                </button>
+                              </div>
+                              {effects.delay.enabled && (
+                                <div className="space-y-1">
+                                  <select value={effects.delay.time} onChange={(e) => { pushUndo(); update('delay', { time: e.target.value }); }} className="w-full bg-black border border-[#333] rounded-[2px] text-[10px] text-gray-200 p-1 outline-none focus:border-cyan-500">
+                                    <option value="1/8">1/8 Note</option>
+                                    <option value="1/4">1/4 Note</option>
+                                    <option value="1/2">1/2 Note</option>
+                                  </select>
+                                  <div className="flex justify-between text-[9px] text-gray-400 font-mono"><span>Mix</span><span>{effects.delay.mix}%</span></div>
+                                  <input type="range" min={0} max={100} step={1} value={effects.delay.mix} onChange={(e) => { pushUndo(); update('delay', { mix: parseFloat(e.target.value) }); }} className="w-full h-1 bg-black rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Saturation */}
+                            <div className="bg-[#1a1a1a] border border-black rounded-sm p-2.5">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-gray-300 flex items-center gap-1"><Disc className="w-3 h-3 text-orange-400" /> Saturator</span>
+                                <button onClick={() => { pushUndo(); update('saturation', { enabled: !effects.saturation.enabled }); }} className={`w-7 h-4 rounded-full relative transition-colors ${effects.saturation.enabled ? 'bg-cyan-500' : 'bg-gray-600'}`}>
+                                  <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all ${effects.saturation.enabled ? 'left-3.5' : 'left-0.5'}`} />
+                                </button>
+                              </div>
+                              {effects.saturation.enabled && (
+                                <div>
+                                  <div className="flex justify-between text-[9px] text-gray-400 font-mono"><span>Drive</span><span>{effects.saturation.drive}%</span></div>
+                                  <input type="range" min={0} max={100} step={1} value={effects.saturation.drive} onChange={(e) => { pushUndo(); update('saturation', { drive: parseFloat(e.target.value) }); }} className="w-full h-1 bg-black rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer" />
+                                </div>
+                              )}
+                            </div>
+
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* MIXER TAB */}
+                    {lowerZoneTab === 'mixer' && (
+                      <MixConsole
+                        onClose={() => setLowerZoneOpen(false)}
+                        isExpanded={lowerZoneHeight > 320}
+                        onToggleExpand={() => setLowerZoneHeight(prev => prev === 320 ? 500 : 320)}
+                      />
+                    )}
+
+                    {/* XAI EXPLAINER TAB */}
+                    {lowerZoneTab === 'xai' && (
+                      <div className="p-4 overflow-auto h-full">
+                        {processedAudioUrl ? (
+                          <div className="space-y-4">
+                            {sections && sections.length > 0 && (
+                              <MixExplainer
+                                sections={sections}
+                                currentTime={playheadTime}
+                                onSeek={handleSeek}
+                                globalSummary={globalSummary}
+                                simpleExplanations={simpleExplanations}
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full text-gray-500 py-8">
+                            <Sparkles className="w-10 h-10 mb-3 opacity-30" />
+                            <h3 className="text-sm font-bold text-gray-400 mb-1">No AI Mix Generated Yet</h3>
+                            <p className="text-xs mb-4">Click the button below to analyze and mix your tracks with AI</p>
+                            <button
+                              onClick={onMixClick}
+                              disabled={tracks.every(t => t.clips.length === 0)}
+                              className="px-5 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-[3px] text-xs font-bold transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] disabled:opacity-50 flex items-center gap-2"
+                            >
+                              <Waves className="w-4 h-4" /> Generate XAI Mix
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* DSP CONTROLS TAB */}
+                    {lowerZoneTab === 'dsp' && (
+                      <div className="p-4 overflow-auto h-full">
+                        <DSPControls />
+                      </div>
+                    )}
+
+                    {/* VOCAL CHAIN TAB */}
+                    {lowerZoneTab === 'vocal' && (
+                      <div className="p-4 overflow-auto h-full">
+                        <VocalEQGuide
+                          eqSettings={eqSettings}
+                          onEqChange={setEqSettings}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <TrackInspector trackId={selectedTrackId} pushUndo={pushUndo} />
+          </div>
+
+          {/* Bottom Status Bar */}
+          <div className="h-7 bg-[#1a1a1a] border-t border-black flex items-center justify-between px-3 text-[9px] text-gray-500 font-mono flex-shrink-0 z-50 relative">
+            <div className="flex items-center gap-4">
+              <span>Space Play/Pause</span>
+              <span>Ctrl+B Split</span>
+              <span>Del Remove</span>
+              <span>Ctrl+Z Undo</span>
+              <span>Ctrl+Y Redo</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Lower Zone Toggle */}
+              <button
+                onClick={() => { setLowerZoneOpen(!lowerZoneOpen); }}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-[2px] transition-colors ${lowerZoneOpen ? 'bg-cyan-900/40 text-cyan-400' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              >
+                {lowerZoneOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                Lower Zone
+              </button>
+              {/* Generate XAI Mix button */}
+              <button
+                onClick={onMixClick}
+                disabled={tracks.every(t => t.clips.length === 0)}
+                className="flex items-center gap-1 px-2.5 py-0.5 bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white rounded-[2px] font-bold transition-all disabled:opacity-30 shadow-sm"
+              >
+                <Sparkles className="w-3 h-3" /> XAI Mix
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
       </div>
     </div>
   );

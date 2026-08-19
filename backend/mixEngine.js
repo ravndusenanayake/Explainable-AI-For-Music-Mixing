@@ -1,5 +1,8 @@
 const WavDecoder = require('wav-decoder');
 const WavEncoder = require('wav-encoder');
+const { execSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -150,6 +153,37 @@ function analyzeSegment(vocalSamples, instrumentalSamples, start, end, sampleRat
  * Returns gain adjustments, EQ suggestions, and explanations.
  */
 function makeMixingDecisions(analysis, sectionType, sectionIndex) {
+  const { vocal, instrumental } = analysis;
+
+  // Check if ML model is trained and available
+  const modelPath = path.join(__dirname, 'mix_model.pkl');
+  if (fs.existsSync(modelPath) && !vocal.isSilent && !instrumental.isSilent) {
+    try {
+      const predictScript = path.join(__dirname, 'predict.py');
+      const features = {
+        vocal_rmsDb: vocal.rmsDb,
+        inst_rmsDb: instrumental.rmsDb,
+        vocal_zcr: vocal.zeroCrossingRate,
+        inst_zcr: instrumental.zeroCrossingRate,
+        vocal_crest: vocal.crestFactor,
+        inst_crest: instrumental.crestFactor
+      };
+      const output = execSync(`python "${predictScript}" "${JSON.stringify(features).replace(/"/g, '\\"')}"`, { encoding: 'utf-8' });
+      const mlDecision = JSON.parse(output.trim());
+      if (mlDecision.success) {
+        return {
+          vocalGainDb: mlDecision.vocalGainDb,
+          instrumentalGainDb: mlDecision.instrumentalGainDb,
+          actions: mlDecision.explanations.map(e => e.action),
+          explanations: mlDecision.explanations,
+          severity: mlDecision.severity
+        };
+      }
+    } catch (err) {
+      console.error('[ML Inference Error] Falling back to heuristics:', err.message);
+    }
+  }
+
   const decisions = {
     vocalGainDb: 0,
     instrumentalGainDb: 0,
@@ -157,8 +191,6 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
     explanations: [],
     severity: 'optimal', // 'optimal' | 'adjusted' | 'significant'
   };
-
-  const { vocal, instrumental } = analysis;
 
   // ── 1. Silence / Near-Silence Handling ──
   if (vocal.isSilent && instrumental.isSilent) {

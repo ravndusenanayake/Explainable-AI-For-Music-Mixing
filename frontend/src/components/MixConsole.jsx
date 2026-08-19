@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useAudioContext } from '../context/AudioContext';
-import { Mic, Guitar, Drum, Volume2, Maximize2, Minimize2, X } from 'lucide-react';
+import { Mic, Guitar, Drum, Volume2, Maximize2, Minimize2, X, SlidersHorizontal } from 'lucide-react';
 
 const trackIcons = {
   rose: <Mic className="w-4 h-4 text-rose-400" />,
