@@ -811,6 +811,10 @@ async function mixTracks(files, timelineState) {
       adjusted: adjustedSections,
       significant: significantSections,
     },
+    dspSettings: {
+      reverbMix: avgReverbMix || 0,
+      delayMix: avgDelayMix || 0
+    },
     summary: `Analyzed ${numSections} sections across ${(maxLength / outputSampleRate).toFixed(0)}s of audio. ` +
       `${optimalSections} sections were already well-balanced, ` +
       `${adjustedSections} needed moderate adjustments, and ` +

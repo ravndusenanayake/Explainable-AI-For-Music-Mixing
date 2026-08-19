@@ -211,7 +211,32 @@ export const AudioProvider = ({ children }) => {
         setProcessedAudioUrl(data.processed_audio_base64);
       }
       if (data.sections) setSections(data.sections);
-      if (data.globalSummary) setGlobalSummary(data.globalSummary);
+      if (data.globalSummary) {
+        setGlobalSummary(data.globalSummary);
+        if (data.globalSummary.dspSettings) {
+          setTracks(prev => prev.map(t => {
+            if (t.type === 'vocal') {
+              return {
+                ...t,
+                effects: {
+                  ...t.effects,
+                  reverb: { 
+                    ...t.effects?.reverb, 
+                    enabled: data.globalSummary.dspSettings.reverbMix > 0, 
+                    mix: Math.round(data.globalSummary.dspSettings.reverbMix * 100) 
+                  },
+                  delay: { 
+                    ...t.effects?.delay, 
+                    enabled: data.globalSummary.dspSettings.delayMix > 0, 
+                    mix: Math.round(data.globalSummary.dspSettings.delayMix * 100) 
+                  }
+                }
+              };
+            }
+            return t;
+          }));
+        }
+      }
       if (data.explanations) setExplanations(data.explanations);
       if (data.simpleExplanations) setSimpleExplanations(data.simpleExplanations);
       if (data.automationData) setAutomationData(data.automationData);
@@ -263,7 +288,32 @@ export const AudioProvider = ({ children }) => {
         setProcessedAudioUrl(data.processed_audio_base64);
       }
       if (data.sections) setSections(data.sections);
-      if (data.globalSummary) setGlobalSummary(data.globalSummary);
+      if (data.globalSummary) {
+        setGlobalSummary(data.globalSummary);
+        if (data.globalSummary.dspSettings) {
+          setTracks(prev => prev.map(t => {
+            if (t.type === 'vocal') {
+              return {
+                ...t,
+                effects: {
+                  ...t.effects,
+                  reverb: { 
+                    ...t.effects?.reverb, 
+                    enabled: data.globalSummary.dspSettings.reverbMix > 0, 
+                    mix: Math.round(data.globalSummary.dspSettings.reverbMix * 100) 
+                  },
+                  delay: { 
+                    ...t.effects?.delay, 
+                    enabled: data.globalSummary.dspSettings.delayMix > 0, 
+                    mix: Math.round(data.globalSummary.dspSettings.delayMix * 100) 
+                  }
+                }
+              };
+            }
+            return t;
+          }));
+        }
+      }
       if (data.explanations) setExplanations(data.explanations);
       if (data.simpleExplanations) setSimpleExplanations(data.simpleExplanations);
       if (data.automationData) setAutomationData(data.automationData);
