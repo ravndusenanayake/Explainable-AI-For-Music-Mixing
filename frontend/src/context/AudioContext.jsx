@@ -138,6 +138,14 @@ export const AudioProvider = ({ children }) => {
     return newMedia;
   };
 
+  const removeMediaFromPool = (id) => {
+    setMediaPool(prev => prev.filter(media => media.id !== id));
+    setTracks(prevTracks => prevTracks.map(track => ({
+      ...track,
+      clips: track.clips.filter(clip => clip.mediaId !== id)
+    })));
+  };
+
   const resetContext = () => {
     setMediaPool([]);
     setTracks(tracks.map(t => ({ ...t, clips: [] })));
@@ -337,7 +345,7 @@ export const AudioProvider = ({ children }) => {
     eqSettings, setEqSettings,
     
     // DAW State
-    mediaPool, setMediaPool, addMediaToPool,
+    mediaPool, setMediaPool, addMediaToPool, removeMediaFromPool,
     tracks, setTracks, updateTrackEffect, updateTrackPan,
     masterVolume, setMasterVolume,
     

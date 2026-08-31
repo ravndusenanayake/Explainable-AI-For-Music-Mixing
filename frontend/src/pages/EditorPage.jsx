@@ -377,7 +377,7 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, i
 // ==========================================
 const EditorPage = () => {
   const {
-    mediaPool, addMediaToPool, tracks, setTracks, updateTrackEffect,
+    mediaPool, addMediaToPool, removeMediaFromPool, tracks, setTracks, updateTrackEffect,
     handleMix, isLoading, loadingStage, automationData,
     processedAudioUrl, sections, globalSummary, simpleExplanations,
     eqSettings, setEqSettings
@@ -872,13 +872,23 @@ const EditorPage = () => {
                       animate={{ opacity: 1, x: 0 }}
                       draggable
                       onDragStart={(e) => handleDragStartMedia(e, media.id)}
-                      className="p-1.5 bg-[#252525] hover:bg-[#2a2a2a] rounded-[2px] cursor-grab active:cursor-grabbing border border-[#111] flex items-center gap-2 transition-colors mb-0.5 shadow-sm"
+                      className="p-1.5 bg-[#252525] hover:bg-[#2a2a2a] rounded-[2px] cursor-grab active:cursor-grabbing border border-[#111] flex items-center gap-2 transition-colors mb-0.5 shadow-sm group"
                     >
                       <div className={`w-1 h-5 rounded-full ${media.type === 'vocal' ? 'bg-rose-500' : 'bg-cyan-500'}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] text-gray-200 truncate leading-tight">{media.name}</p>
                         <p className="text-[9px] text-gray-500 font-bold uppercase leading-tight">{media.type}</p>
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeMediaFromPool(media.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400 transition-all hover:bg-black/20 rounded-[2px]"
+                        title="Remove from Pool"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </motion.div>
                   ))}
                 </AnimatePresence>
