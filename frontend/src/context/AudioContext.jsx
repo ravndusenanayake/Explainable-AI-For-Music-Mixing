@@ -341,6 +341,54 @@ export const AudioProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Send a file to the backend to be converted to a different voice style.
+   */
+  const handleVoiceConversion = async (mediaId, style) => {
+    const media = mediaPool.find(m => m.id === mediaId);
+    if (!media) return false;
+
+    setIsLoading(true);
+    setError(null);
+    setLoadingStage(`Converting voice to ${style} style...`);
+
+    const formData = new FormData();
+    formData.append('file', media.file, media.name);
+    formData.append('style', style);
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/convert-voice', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (response.data && response.data.processed_audio_base64) {
+        // Convert base64 back to a File
+        const res = await fetch(response.data.processed_audio_base64);
+        const blob = await res.blob();
+        
+        const styleLabel = style.charAt(0).toUpperCase() + style.slice(1);
+        // Clean up the extension if present to avoid .wav (Rock).wav
+        const baseName = media.name.replace(/\.[^/.]+$/, "");
+        const newFileName = `${baseName} (${styleLabel} Voice).wav`;
+        
+        const newFile = new File([blob], newFileName, { type: 'audio/wav' });
+        
+        // Add it to the pool
+        addMediaToPool(newFile);
+        
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(err);
+      setError('Failed to convert voice style. Check if backend is running.');
+      return false;
+    } finally {
+      setIsLoading(false);
+      setLoadingStage('');
+    }
+  };
+
   const value = {
     eqSettings, setEqSettings,
     
@@ -360,6 +408,7 @@ export const AudioProvider = ({ children }) => {
     // Actions
     handleMix,
     handleAutoMix,
+    handleVoiceConversion,
     resetContext,
     
     // UI State

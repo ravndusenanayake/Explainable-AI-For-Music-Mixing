@@ -70,6 +70,45 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
 }));
 
 // ============================================================
+// NEW: Voice Conversion Endpoint
+// ============================================================
+const { convertVoiceStyle } = require('./voiceEngine');
+
+app.post('/api/convert-voice', upload.single('file'), asyncHandler(async (req, res) => {
+    console.log('\n--- New Voice Conversion Request ---');
+    
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+    }
+
+    const style = req.body.style || 'normal';
+    console.log(`[Node] Converting ${req.file.originalname} to ${style} style.`);
+
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+    
+    const inputPath = path.join(tempDir, `temp_convert_in_${Date.now()}.wav`);
+    fs.writeFileSync(inputPath, req.file.buffer);
+
+    try {
+        const outputPath = await convertVoiceStyle(inputPath, style);
+        
+        // Read the converted file back to buffer
+        const convertedBuffer = fs.readFileSync(outputPath);
+        const convertedBase64 = `data:audio/wav;base64,${convertedBuffer.toString('base64')}`;
+
+        // Cleanup
+        fs.unlinkSync(inputPath);
+        fs.unlinkSync(outputPath);
+
+        return res.status(200).json({ processed_audio_base64: convertedBase64 });
+    } catch (err) {
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        return res.status(500).json({ error: 'Failed to convert voice.' });
+    }
+}));
+
+// ============================================================
 // NEW: 1-Click Auto Mix Endpoint
 // ============================================================
 app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) => {

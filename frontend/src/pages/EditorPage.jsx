@@ -9,7 +9,7 @@ import {
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
   PlaySquare, Repeat, Settings2, SlidersHorizontal, Sparkles,
   ChevronUp, ChevronDown, Maximize2, Minimize2, X,
-  Settings, Sliders, Wind, Zap, Disc
+  Settings, Sliders, Wind, Zap, Disc, Circle
 } from 'lucide-react';
 import MixConsole from '../components/MixConsole';
 import MixExplainer from '../components/MixExplainer';
@@ -37,7 +37,7 @@ const formatTimeRuler = (sec) => {
 // ==========================================
 // COMPONENT: Clip
 // ==========================================
-const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime, trackHeight }) => {
+const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime, trackHeight, activeTool, onSplit, onToggleMute }) => {
   const containerRef = useRef(null);
   const [duration, setDuration] = useState(0);
 
@@ -95,8 +95,23 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       dragConstraints={{ left: 0 }}
       dragElastic={0}
       dragMomentum={false}
-      onPointerDown={(e) => { onSelect(clip.id); e.stopPropagation(); }}
+      onPointerDown={(e) => { 
+        e.stopPropagation();
+        if (activeTool === 'erase') {
+          onRemove(clip.id);
+        } else if (activeTool === 'mute') {
+          if (onToggleMute) onToggleMute(clip.id);
+        } else if (activeTool === 'split') {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          const splitTime = clip.offset + (clickX / zoomLevel);
+          if (onSplit) onSplit(clip.id, splitTime);
+        } else {
+          onSelect(clip.id); 
+        }
+      }}
       onDragEnd={(e, info) => {
+        if (activeTool !== 'pointer') return;
         let newX = Math.max(0, clip.offset * zoomLevel + info.offset.x);
 
         // Magnetic Snapping: snap clip start to playhead if within 15 pixels
@@ -115,7 +130,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       style={{ width }}
       className={`absolute top-[2px] bottom-[2px] rounded-sm cursor-grab active:cursor-grabbing border overflow-hidden group
         ${bgColors[trackColor] || bgColors.cyan}
-        ${isSelected ? 'border-white ring-1 ring-white z-20' : 'opacity-90'}
+        ${clip.isMuted ? 'opacity-40 grayscale' : (isSelected ? 'border-white ring-1 ring-white z-20' : 'opacity-90')}
       `}
     >
       {/* Clip Header with Name */}
@@ -144,9 +159,94 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
 };
 
 // ==========================================
+// COMPONENT: RecordingClip
+// ==========================================
+const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream }) => {
+  const width = Math.max(0, (playheadTime - startTime)) * zoomLevel;
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!stream || !canvasRef.current) return;
+    
+    // We need to create an AudioContext to analyze the live microphone stream
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioCtx.createAnalyser();
+    
+    // Connect the stream to our analyser
+    const source = audioCtx.createMediaStreamSource(stream);
+    
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    const canvas = canvasRef.current;
+    const canvasCtx = canvas.getContext('2d');
+    
+    let drawVisual;
+    
+    const draw = () => {
+      drawVisual = requestAnimationFrame(draw);
+      analyser.getByteTimeDomainData(dataArray);
+      
+      const cWidth = canvas.width;
+      const cHeight = canvas.height;
+      
+      canvasCtx.clearRect(0, 0, cWidth, cHeight);
+      
+      canvasCtx.lineWidth = 2;
+      canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      canvasCtx.beginPath();
+      
+      const sliceWidth = cWidth * 1.0 / bufferLength;
+      let x = 0;
+      
+      for(let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * cHeight / 2;
+        
+        if(i === 0) {
+          canvasCtx.moveTo(x, y);
+        } else {
+          canvasCtx.lineTo(x, y);
+        }
+        x += sliceWidth;
+      }
+      
+      canvasCtx.lineTo(canvas.width, canvas.height / 2);
+      canvasCtx.stroke();
+    };
+    
+    draw();
+    
+    return () => {
+      cancelAnimationFrame(drawVisual);
+      audioCtx.close();
+    };
+  }, [stream]);
+
+  return (
+    <div
+      style={{ left: startTime * zoomLevel, width: width, height: trackHeight - 4 }}
+      className="absolute top-[2px] rounded-sm bg-[#555] border border-gray-400 overflow-hidden z-20 shadow-md"
+    >
+      <div className="absolute top-0 left-0 right-0 h-[16px] bg-[#333] flex items-center px-1.5 border-b border-[#222]">
+        <span className="text-[9px] font-bold text-white/90 drop-shadow-md flex items-center gap-1">
+          <Circle className="w-2 h-2 text-red-500 fill-red-500 animate-pulse" /> Recording
+        </span>
+      </div>
+      <div className="w-full h-full pt-[16px] relative overflow-hidden">
+         <canvas ref={canvasRef} className="w-full h-full opacity-80" width={1000} height={trackHeight - 20} />
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
 // COMPONENT: Track
 // ==========================================
-const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack }) => {
+const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack, activeTool, onSplitClip, onToggleClipMute, onToggleRecordEnable, onToggleMonitor, onToggleRead, onToggleWrite, isRecording, recordStartTime, targetRecordTrackId, activeStreamRef }) => {
   const trackRef = useRef(null);
   const [isLocked, setIsLocked] = useState(false);
 
@@ -241,7 +341,7 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
             onRemove={isLocked ? () => { } : onRemoveClip}
             zoomLevel={zoomLevel} isSelected={selectedClipId === clip.id} onSelect={onSelectClip}
             clipDurations={clipDurations} clipWsRefs={clipWsRefs} playheadTime={playheadTime}
-            trackHeight={trackHeight}
+            trackHeight={trackHeight} activeTool={activeTool} onSplit={onSplitClip} onToggleMute={onToggleClipMute}
           />
         ))}
         {track.clips.length === 0 && (
@@ -251,6 +351,12 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
             </span>
           </div>
         )}
+        
+        {/* Render Live Recording Block if applicable */}
+        {isRecording && targetRecordTrackId === track.id && recordStartTime !== null && (
+          <RecordingClip startTime={recordStartTime} playheadTime={playheadTime} zoomLevel={zoomLevel} trackHeight={trackHeight} stream={activeStreamRef} />
+        )}
+        
         {/* Automation Lane overlay */}
         <AutomationLane data={track.automation} color={track.color} zoomLevel={zoomLevel} trackHeight={trackHeight} />
       </div>
@@ -413,6 +519,73 @@ const EditorPage = () => {
   const [clipboard, setClipboard] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
+
+  // Live Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordStartTime, setRecordStartTime] = useState(null);
+  const [targetRecordTrackId, setTargetRecordTrackId] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const activeStreamRef = useRef(null);
+
+  const handleRecordToggle = async () => {
+    if (isRecording) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecording(false);
+      setRecordStartTime(null);
+      setTargetRecordTrackId(null);
+      activeStreamRef.current = null;
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        activeStreamRef.current = stream;
+        
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+          const file = new File([audioBlob], `Live_Recording_${Date.now()}.wav`, { type: 'audio/wav' });
+          
+          const newMedia = addMediaToPool(file);
+          
+          const targetTrackId = selectedTrackId || tracks[0]?.id;
+          if (targetTrackId) {
+            pushUndo();
+            const newClip = {
+              id: `clip_${Date.now()}`,
+              mediaId: newMedia.id,
+              offset: playheadTime,
+              name: 'Live Take'
+            };
+            setTracks(prev => prev.map(t => 
+              t.id === targetTrackId ? { ...t, clips: [...t.clips, newClip] } : t
+            ));
+          }
+          
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+        setIsPlaying(true);
+        setRecordStartTime(playheadTime);
+        setTargetRecordTrackId(selectedTrackId || tracks[0]?.id);
+      } catch (err) {
+        console.error("Microphone access denied or error:", err);
+        alert(`Failed to start recording: ${err.name} - ${err.message}. Please check your microphone and permissions.`);
+      }
+    }
+  };
 
   // Menu State
   const [activeMenu, setActiveMenu] = useState(null);
@@ -943,6 +1116,16 @@ const EditorPage = () => {
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
               </button>
+              
+              {/* Record Button */}
+              <button
+                onClick={handleRecordToggle}
+                className={`w-9 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors ${isRecording ? 'animate-pulse bg-red-900/40' : ''}`}
+                title="Record (Live)"
+              >
+                <Circle className={`w-3.5 h-3.5 ${isRecording ? 'text-red-500 fill-red-500' : 'text-[#c0c0c0]'}`} />
+              </button>
+
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
                 className="w-10 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors"
@@ -1043,6 +1226,7 @@ const EditorPage = () => {
                         playheadTime={playheadTime} trackHeight={trackHeight}
                         onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
                         onSelectTrack={setSelectedTrackId} isSelectedTrack={selectedTrackId === track.id}
+                        isRecording={isRecording} recordStartTime={recordStartTime} targetRecordTrackId={targetRecordTrackId} activeStreamRef={activeStreamRef.current}
                       />
                     ))}
 
