@@ -164,15 +164,14 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
 const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream }) => {
   const width = Math.max(0, (playheadTime - startTime)) * zoomLevel;
   const canvasRef = useRef(null);
+  const peaksRef = useRef([]);
 
   useEffect(() => {
     if (!stream || !canvasRef.current) return;
     
-    // We need to create an AudioContext to analyze the live microphone stream
+    // Create AudioContext to analyze live mic
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
-    
-    // Connect the stream to our analyser
     const source = audioCtx.createMediaStreamSource(stream);
     
     analyser.fftSize = 256;
@@ -185,40 +184,62 @@ const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream
     const canvasCtx = canvas.getContext('2d');
     
     let drawVisual;
+    let lastDrawTime = performance.now();
     
-    const draw = () => {
+    const draw = (time) => {
       drawVisual = requestAnimationFrame(draw);
+      
+      // Calculate current amplitude
       analyser.getByteTimeDomainData(dataArray);
-      
-      const cWidth = canvas.width;
-      const cHeight = canvas.height;
-      
-      canvasCtx.clearRect(0, 0, cWidth, cHeight);
-      
-      canvasCtx.lineWidth = 2;
-      canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-      canvasCtx.beginPath();
-      
-      const sliceWidth = cWidth * 1.0 / bufferLength;
-      let x = 0;
-      
-      for(let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0;
-        const y = v * cHeight / 2;
-        
-        if(i === 0) {
-          canvasCtx.moveTo(x, y);
-        } else {
-          canvasCtx.lineTo(x, y);
-        }
-        x += sliceWidth;
+      let max = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const val = Math.abs((dataArray[i] / 128.0) - 1.0);
+        if (val > max) max = val;
       }
       
-      canvasCtx.lineTo(canvas.width, canvas.height / 2);
-      canvasCtx.stroke();
+      // Store a peak every 30ms for historical building waveform
+      if (time - lastDrawTime > 30) {
+        peaksRef.current.push(max);
+        lastDrawTime = time;
+      }
+      
+      // Dynamically update canvas internal resolution to match container width
+      const displayWidth = canvas.clientWidth;
+      if (canvas.width !== displayWidth) {
+         canvas.width = Math.max(displayWidth, 1);
+      }
+      const cHeight = canvas.height;
+      
+      canvasCtx.clearRect(0, 0, canvas.width, cHeight);
+      
+      // Draw true waveform peaks
+      canvasCtx.fillStyle = '#2a2b2d'; // Dark gray waveform matching Cubase
+      canvasCtx.beginPath();
+      
+      const numPeaks = peaksRef.current.length;
+      if (numPeaks === 0) return;
+      
+      const step = canvas.width / numPeaks;
+      const centerY = cHeight / 2;
+      
+      // Draw top half
+      canvasCtx.moveTo(0, centerY);
+      for (let i = 0; i < numPeaks; i++) {
+        const h = Math.max(2, peaksRef.current[i] * cHeight * 1.5); // Add minimum height and scale up slightly
+        canvasCtx.lineTo(i * step, centerY - h/2);
+      }
+      
+      // Draw bottom half backwards
+      for (let i = numPeaks - 1; i >= 0; i--) {
+        const h = Math.max(2, peaksRef.current[i] * cHeight * 1.5);
+        canvasCtx.lineTo(i * step, centerY + h/2);
+      }
+      
+      canvasCtx.closePath();
+      canvasCtx.fill();
     };
     
-    draw();
+    draw(performance.now());
     
     return () => {
       cancelAnimationFrame(drawVisual);
@@ -229,15 +250,15 @@ const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream
   return (
     <div
       style={{ left: startTime * zoomLevel, width: width, height: trackHeight - 4 }}
-      className="absolute top-[2px] rounded-sm bg-[#555] border border-gray-400 overflow-hidden z-20 shadow-md"
+      className="absolute top-[2px] rounded-sm bg-[#959799] border border-[#666] overflow-hidden z-20"
     >
-      <div className="absolute top-0 left-0 right-0 h-[16px] bg-[#333] flex items-center px-1.5 border-b border-[#222]">
-        <span className="text-[9px] font-bold text-white/90 drop-shadow-md flex items-center gap-1">
-          <Circle className="w-2 h-2 text-red-500 fill-red-500 animate-pulse" /> Recording
+      <div className="absolute top-0 left-0 h-[16px] bg-[#d4d4d4] flex items-center px-1 border-b border-r border-[#666] z-10">
+        <span className="text-[10px] font-bold text-black flex items-center gap-1 drop-shadow-sm">
+          <Circle className="w-2 h-2 text-red-600 fill-red-600 animate-pulse" /> Recording
         </span>
       </div>
-      <div className="w-full h-full pt-[16px] relative overflow-hidden">
-         <canvas ref={canvasRef} className="w-full h-full opacity-80" width={1000} height={trackHeight - 20} />
+      <div className="w-full h-full relative overflow-hidden">
+         <canvas ref={canvasRef} className="w-full h-full opacity-90" height={trackHeight - 4} />
       </div>
     </div>
   );
@@ -527,8 +548,11 @@ const EditorPage = () => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const activeStreamRef = useRef(null);
+  const recordingStartOffsetRef = useRef(0);
+  const recordingTargetTrackRef = useRef(null);
 
-  const handleRecordToggle = async () => {
+  const handleStop = () => {
+    setIsPlaying(false);
     if (isRecording) {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
@@ -537,6 +561,12 @@ const EditorPage = () => {
       setRecordStartTime(null);
       setTargetRecordTrackId(null);
       activeStreamRef.current = null;
+    }
+  };
+
+  const handleRecordToggle = async () => {
+    if (isRecording) {
+      handleStop();
     } else {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -545,6 +575,11 @@ const EditorPage = () => {
         const mediaRecorder = new MediaRecorder(stream);
         mediaRecorderRef.current = mediaRecorder;
         audioChunksRef.current = [];
+
+        // Save current playhead and target track for when the recording finishes
+        recordingStartOffsetRef.current = playheadTime;
+        const targetTrackId = selectedTrackId || tracks[0]?.id;
+        recordingTargetTrackRef.current = targetTrackId;
 
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
@@ -558,17 +593,17 @@ const EditorPage = () => {
           
           const newMedia = addMediaToPool(file);
           
-          const targetTrackId = selectedTrackId || tracks[0]?.id;
-          if (targetTrackId) {
+          const finalTrackId = recordingTargetTrackRef.current;
+          if (finalTrackId) {
             pushUndo();
             const newClip = {
               id: `clip_${Date.now()}`,
               mediaId: newMedia.id,
-              offset: playheadTime,
+              offset: recordingStartOffsetRef.current,
               name: 'Live Take'
             };
             setTracks(prev => prev.map(t => 
-              t.id === targetTrackId ? { ...t, clips: [...t.clips, newClip] } : t
+              t.id === finalTrackId ? { ...t, clips: [...t.clips, newClip] } : t
             ));
           }
           
@@ -579,7 +614,7 @@ const EditorPage = () => {
         setIsRecording(true);
         setIsPlaying(true);
         setRecordStartTime(playheadTime);
-        setTargetRecordTrackId(selectedTrackId || tracks[0]?.id);
+        setTargetRecordTrackId(targetTrackId);
       } catch (err) {
         console.error("Microphone access denied or error:", err);
         alert(`Failed to start recording: ${err.name} - ${err.message}. Please check your microphone and permissions.`);
@@ -1133,7 +1168,7 @@ const EditorPage = () => {
                 {isPlaying ? <Pause className="w-4 h-4 text-cyan-400 fill-current" /> : <Play className="w-4 h-4 text-[#c0c0c0] fill-current" />}
               </button>
               <button
-                onClick={() => setIsPlaying(false)}
+                onClick={handleStop}
                 className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
