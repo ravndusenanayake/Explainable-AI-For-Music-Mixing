@@ -553,6 +553,7 @@ const EditorPage = () => {
 
   const handleStop = () => {
     setIsPlaying(false);
+    isStartingRecordRef.current = false;
     if (isRecording) {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
@@ -564,12 +565,28 @@ const EditorPage = () => {
     }
   };
 
+  const handleStopRef = useRef(handleStop);
+  useEffect(() => { handleStopRef.current = handleStop; });
+
+  const isRecordingRef = useRef(isRecording);
+  useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
+
+  const isStartingRecordRef = useRef(false);
+
   const handleRecordToggle = async () => {
-    if (isRecording) {
+    if (isRecording || isStartingRecordRef.current) {
       handleStop();
     } else {
       try {
+        isStartingRecordRef.current = true;
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Prevent race condition if user clicked stop before stream initialized
+        if (!isStartingRecordRef.current) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
         activeStreamRef.current = stream;
         
         const mediaRecorder = new MediaRecorder(stream);
@@ -588,8 +605,13 @@ const EditorPage = () => {
         };
 
         mediaRecorder.onstop = () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-          const file = new File([audioBlob], `Live_Recording_${Date.now()}.wav`, { type: 'audio/wav' });
+          const mimeType = mediaRecorder.mimeType || 'audio/webm';
+          let ext = 'webm';
+          if (mimeType.includes('mp4')) ext = 'mp4';
+          else if (mimeType.includes('ogg')) ext = 'ogg';
+
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+          const file = new File([audioBlob], `Live_Recording_${Date.now()}.${ext}`, { type: mimeType });
           
           const newMedia = addMediaToPool(file);
           
@@ -599,6 +621,7 @@ const EditorPage = () => {
             const newClip = {
               id: `clip_${Date.now()}`,
               mediaId: newMedia.id,
+              file: file,
               offset: recordingStartOffsetRef.current,
               name: 'Live Take'
             };
@@ -618,6 +641,8 @@ const EditorPage = () => {
       } catch (err) {
         console.error("Microphone access denied or error:", err);
         alert(`Failed to start recording: ${err.name} - ${err.message}. Please check your microphone and permissions.`);
+      } finally {
+        isStartingRecordRef.current = false;
       }
     }
   };
@@ -862,10 +887,14 @@ const EditorPage = () => {
     const handleKeyDown = (e) => {
       if ((e.target.tagName === 'INPUT' && e.target.type !== 'range') || e.target.tagName === 'TEXTAREA') return;
 
-      // Spacebar -> Play / Pause
+      // Spacebar -> Play / Pause / Stop Recording
       if (e.key === ' ' && !e.repeat) {
         e.preventDefault();
-        setIsPlaying(prev => !prev);
+        if (isRecordingRef.current) {
+          handleStopRef.current();
+        } else {
+          setIsPlaying(prev => !prev);
+        }
       }
       // Delete / Backspace -> Remove selected clip
       if ((e.key === 'Backspace' || e.key === 'Delete') && selectedClipId) {
