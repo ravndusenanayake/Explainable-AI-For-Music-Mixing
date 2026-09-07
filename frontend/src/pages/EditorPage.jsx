@@ -9,7 +9,7 @@ import {
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
   PlaySquare, Repeat, Settings2, SlidersHorizontal, Sparkles,
   ChevronUp, ChevronDown, Maximize2, Minimize2, X,
-  Settings, Sliders, Wind, Zap, Disc, Circle
+  Settings, Sliders, Wind, Zap, Disc, Circle, Wand2, Link2, Layers
 } from 'lucide-react';
 import MixConsole from '../components/MixConsole';
 import MixExplainer from '../components/MixExplainer';
@@ -17,6 +17,11 @@ import AudioVisualizer from '../components/AudioVisualizer';
 import DSPControls from '../components/DSPControls';
 import VocalEQGuide from '../components/VocalEQGuide';
 import TrackInspector from '../components/TrackInspector';
+import PitchEditor from '../components/PitchEditor';
+import AudioAligner from '../components/AudioAligner';
+import ChannelStrip from '../components/ChannelStrip';
+import ProjectsModal from '../components/ProjectsModal';
+import { Cloud } from 'lucide-react';
 
 // ==========================================
 // HELPERS
@@ -521,6 +526,7 @@ const EditorPage = () => {
   const [trackHeight, setTrackHeight] = useState(72); // Dynamic track height
   const [showMixer, setShowMixer] = useState(false);
   const [mixerExpanded, setMixerExpanded] = useState(false);
+  const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
 
   // Lower Zone State
   const [lowerZoneOpen, setLowerZoneOpen] = useState(false);
@@ -1252,6 +1258,14 @@ const EditorPage = () => {
                 <Sparkles className="w-3.5 h-3.5" />
                 GENERATE AI MIX
               </button>
+
+              <button
+                onClick={() => setIsProjectsModalOpen(true)}
+                className="ml-2 bg-[#1a1a1a] hover:bg-[#222] text-gray-300 text-xs font-bold px-3 py-1.5 rounded-[3px] transition-all flex items-center gap-2 border border-[#333] hover:border-cyan-500/50"
+              >
+                <Cloud className="w-3.5 h-3.5 text-cyan-400" />
+                Cloud Projects
+              </button>
             </div>
           </div>
 
@@ -1318,6 +1332,9 @@ const EditorPage = () => {
                         { id: 'fx', label: 'FX Rack', icon: <Settings className="w-3 h-3" /> },
                         { id: 'mixer', label: 'MixConsole', icon: <SlidersHorizontal className="w-3 h-3" /> },
                         { id: 'xai', label: 'AI Explainer', icon: <Sparkles className="w-3 h-3" /> },
+                        { id: 'channelstrip', label: 'Channel Strip', icon: <Layers className="w-3 h-3" /> },
+                        { id: 'variaudio', label: 'VariAudio', icon: <Wand2 className="w-3 h-3" /> },
+                        { id: 'align', label: 'Audio Align', icon: <Link2 className="w-3 h-3" /> },
                         { id: 'dsp', label: 'DSP Controls', icon: <Sliders className="w-3 h-3" /> },
                         { id: 'vocal', label: 'Vocal Chain', icon: <Mic className="w-3 h-3" /> },
                       ].map(tab => (
@@ -1542,6 +1559,17 @@ const EditorPage = () => {
                         />
                       </div>
                     )}
+
+                    {/* NEW CUBASE-STYLE FEATURES */}
+                    {lowerZoneTab === 'channelstrip' && (
+                      <ChannelStrip selectedTrackId={selectedTrackId} />
+                    )}
+                    {lowerZoneTab === 'variaudio' && (
+                      <PitchEditor selectedTrackId={selectedTrackId} />
+                    )}
+                    {lowerZoneTab === 'align' && (
+                      <AudioAligner />
+                    )}
                   </div>
                 </div>
               )}
@@ -1579,6 +1607,11 @@ const EditorPage = () => {
           </div>
         </div>
       </div>
+      
+      <ProjectsModal 
+        isOpen={isProjectsModalOpen} 
+        onClose={() => setIsProjectsModalOpen(false)} 
+      />
     </div>
   );
 };

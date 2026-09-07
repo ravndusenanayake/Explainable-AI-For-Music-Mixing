@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { get, set } from 'idb-keyval';
+import { supabase } from '../lib/supabaseClient';
+import { v4 as uuidv4 } from 'uuid';
 
 const AudioContext = createContext(null);
 
@@ -619,10 +621,179 @@ export const AudioProvider = ({ children }) => {
     }));
   };
 
+  // ==========================================
+  // SUPABASE CLOUD SAVE / LOAD
+  // ==========================================
+
+  const saveProjectToSupabase = async (projectName) => {
+    setIsLoading(true);
+    setLoadingStage('Saving to Cloud...');
+    try {
+      // 1. Create Project Entry
+      const { data: projectData, error: projError } = await supabase
+        .from('projects')
+        .insert([{ name: projectName }])
+        .select()
+        .single();
+      
+      if (projError) throw projError;
+      const projectId = projectData.id;
+
+      // 2. Upload Audio Files & Save Tracks
+      for (const track of tracks) {
+        // Save Track
+        const { data: trackData, error: trackError } = await supabase
+          .from('tracks')
+          .insert([{
+            project_id: projectId,
+            name: track.name,
+            type: track.type,
+            color: track.color,
+            volume: track.volume,
+            pan: track.pan,
+            muted: track.isMuted,
+            soloed: track.isSoloed,
+            effects: track.effects
+          }])
+          .select()
+          .single();
+
+        if (trackError) throw trackError;
+
+        // Save Clips for this track
+        for (const clip of track.clips) {
+          // If the file is a Blob/File from local upload, upload it to Supabase Storage
+          let mediaUrl = clip.url;
+          if (clip.file) {
+            const fileName = `${projectId}/${trackData.id}/${uuidv4()}.wav`;
+            const { error: uploadError } = await supabase.storage
+              .from('audio-uploads')
+              .upload(fileName, clip.file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: publicUrlData } = supabase.storage
+              .from('audio-uploads')
+              .getPublicUrl(fileName);
+            
+            mediaUrl = publicUrlData.publicUrl;
+          }
+
+          // Insert Clip Record
+          const { error: clipError } = await supabase
+            .from('clips')
+            .insert([{
+              track_id: trackData.id,
+              media_url: mediaUrl,
+              start_time: clip.startTime || 0,
+              duration: clip.duration || 0,
+              offset_time: clip.offset || 0,
+              trim_start: clip.trimStart || 0,
+              trim_end: clip.trimEnd || 0
+            }]);
+
+          if (clipError) throw clipError;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Supabase Save Error:', error);
+      alert('Failed to save project to Supabase: ' + error.message);
+      return false;
+    } finally {
+      setIsLoading(false);
+      setLoadingStage(null);
+    }
+  };
+
+  const loadProjectFromSupabase = async (projectId) => {
+    setIsLoading(true);
+    setLoadingStage('Downloading Project Data...');
+    try {
+      // 1. Fetch Tracks
+      const { data: tracksData, error: tracksError } = await supabase
+        .from('tracks')
+        .select('*')
+        .eq('project_id', projectId);
+      
+      if (tracksError) throw tracksError;
+
+      // 2. Build the DAW state
+      const loadedTracks = [];
+      const loadedMediaPool = [];
+
+      for (const t of tracksData) {
+        // Fetch Clips for track
+        const { data: clipsData, error: clipsError } = await supabase
+          .from('clips')
+          .select('*')
+          .eq('track_id', t.id);
+
+        if (clipsError) throw clipsError;
+
+        const trackClips = [];
+        for (const c of clipsData) {
+          // Download the audio file to create a blob for the UI (WaveSurfer needs it)
+          setLoadingStage(`Downloading audio for ${t.name}...`);
+          const response = await fetch(c.media_url);
+          const blob = await response.blob();
+          
+          const mediaId = `media_${uuidv4()}`;
+          loadedMediaPool.push({
+            id: mediaId,
+            file: blob,
+            url: URL.createObjectURL(blob),
+            name: `${t.name} Clip`,
+            type: t.type
+          });
+
+          trackClips.push({
+            id: `clip_${uuidv4()}`,
+            mediaId: mediaId,
+            file: blob,
+            url: URL.createObjectURL(blob),
+            startTime: c.start_time,
+            duration: c.duration,
+            offset: c.offset_time,
+            trimStart: c.trim_start,
+            trimEnd: c.trim_end
+          });
+        }
+
+        loadedTracks.push({
+          id: `t_${t.id}`,
+          name: t.name,
+          type: t.type,
+          color: t.color,
+          volume: t.volume,
+          pan: t.pan,
+          isMuted: t.muted,
+          isSoloed: t.soloed,
+          effects: t.effects || structuredClone(defaultEffects),
+          clips: trackClips
+        });
+      }
+
+      setMediaPool(loadedMediaPool);
+      setTracks(loadedTracks);
+      return true;
+    } catch (error) {
+      console.error('Supabase Load Error:', error);
+      alert('Failed to load project from Supabase: ' + error.message);
+      return false;
+    } finally {
+      setIsLoading(false);
+      setLoadingStage(null);
+    }
+  };
+
   value.handlePitchCorrection = handlePitchCorrection;
   value.handleAlignment = handleAlignment;
   value.channelStripPresets = channelStripPresets;
   value.applyChannelStripPreset = applyChannelStripPreset;
+  value.saveProjectToSupabase = saveProjectToSupabase;
+  value.loadProjectFromSupabase = loadProjectFromSupabase;
 
   if (!isProjectLoaded) {
     return (

@@ -1,0 +1,8 @@
+- [x] Set up frontend `.env` file with Supabase URL and Anon Key.
+- [x] Install `@supabase/supabase-js` dependency.
+- [x] Create `frontend/src/lib/supabaseClient.js` to initialize the client.
+- [x] Create `supabase_schema.sql` file containing the table definitions (projects, tracks, clips) for the user to run in Supabase SQL Editor.
+- [x] Implement `ProjectsModal.jsx` for saving/loading projects.
+- [x] Update `EditorPage.jsx` with "Save Project" and "My Projects" buttons.
+- [x] Update `AudioContext.jsx` with logic to save/load state to Supabase.
+- [x] Ensure Supabase Storage is handled correctly for media uploads.
