@@ -147,6 +147,243 @@ function applyReverb(buffer, sampleRate, mix) {
   }
 }
 
+// ── CHANNEL STRIP DSP ALGORITHMS ──
+
+/**
+ * Biquad filter implementation for parametric EQ bands.
+ * Supports: highpass, lowpass, peaking, highshelf, lowshelf
+ */
+function createBiquadFilter(type, freq, q, gainDb, sampleRate) {
+  const w0 = 2 * Math.PI * freq / sampleRate;
+  const cosW0 = Math.cos(w0);
+  const sinW0 = Math.sin(w0);
+  const alpha = sinW0 / (2 * q);
+  const A = Math.pow(10, gainDb / 40);
+
+  let b0, b1, b2, a0, a1, a2;
+
+  switch (type) {
+    case 'highpass':
+      b0 = (1 + cosW0) / 2;
+      b1 = -(1 + cosW0);
+      b2 = (1 + cosW0) / 2;
+      a0 = 1 + alpha;
+      a1 = -2 * cosW0;
+      a2 = 1 - alpha;
+      break;
+    case 'lowpass':
+      b0 = (1 - cosW0) / 2;
+      b1 = (1 - cosW0);
+      b2 = (1 - cosW0) / 2;
+      a0 = 1 + alpha;
+      a1 = -2 * cosW0;
+      a2 = 1 - alpha;
+      break;
+    case 'peaking':
+      b0 = 1 + alpha * A;
+      b1 = -2 * cosW0;
+      b2 = 1 - alpha * A;
+      a0 = 1 + alpha / A;
+      a1 = -2 * cosW0;
+      a2 = 1 - alpha / A;
+      break;
+    case 'highshelf':
+      b0 = A * ((A + 1) + (A - 1) * cosW0 + 2 * Math.sqrt(A) * alpha);
+      b1 = -2 * A * ((A - 1) + (A + 1) * cosW0);
+      b2 = A * ((A + 1) + (A - 1) * cosW0 - 2 * Math.sqrt(A) * alpha);
+      a0 = (A + 1) - (A - 1) * cosW0 + 2 * Math.sqrt(A) * alpha;
+      a1 = 2 * ((A - 1) - (A + 1) * cosW0);
+      a2 = (A + 1) - (A - 1) * cosW0 - 2 * Math.sqrt(A) * alpha;
+      break;
+    case 'lowshelf':
+      b0 = A * ((A + 1) - (A - 1) * cosW0 + 2 * Math.sqrt(A) * alpha);
+      b1 = 2 * A * ((A - 1) - (A + 1) * cosW0);
+      b2 = A * ((A + 1) - (A - 1) * cosW0 - 2 * Math.sqrt(A) * alpha);
+      a0 = (A + 1) + (A - 1) * cosW0 + 2 * Math.sqrt(A) * alpha;
+      a1 = -2 * ((A - 1) + (A + 1) * cosW0);
+      a2 = (A + 1) + (A - 1) * cosW0 - 2 * Math.sqrt(A) * alpha;
+      break;
+    default:
+      return null;
+  }
+
+  return {
+    b0: b0 / a0, b1: b1 / a0, b2: b2 / a0,
+    a1: a1 / a0, a2: a2 / a0,
+    x1: 0, x2: 0, y1: 0, y2: 0
+  };
+}
+
+function processBiquad(filter, sample) {
+  const output = filter.b0 * sample + filter.b1 * filter.x1 + filter.b2 * filter.x2
+                 - filter.a1 * filter.y1 - filter.a2 * filter.y2;
+  filter.x2 = filter.x1;
+  filter.x1 = sample;
+  filter.y2 = filter.y1;
+  filter.y1 = output;
+  return output;
+}
+
+/**
+ * Apply parametric EQ to a buffer using biquad filters.
+ */
+function applyParametricEQ(buffer, bands, sampleRate) {
+  if (!bands || bands.length === 0) return;
+  
+  const filters = bands
+    .filter(b => b.type === 'highpass' || b.type === 'lowpass' || Math.abs(b.gain) > 0.1)
+    .map(b => createBiquadFilter(b.type, b.freq, b.q || 1, b.gain || 0, sampleRate))
+    .filter(f => f !== null);
+  
+  if (filters.length === 0) return;
+  console.log(`[DSP] Applying Parametric EQ: ${filters.length} active bands`);
+  
+  for (let i = 0; i < buffer.length; i++) {
+    let sample = buffer[i];
+    for (const filter of filters) {
+      sample = processBiquad(filter, sample);
+    }
+    buffer[i] = sample;
+  }
+}
+
+/**
+ * Apply dynamic compression to a buffer.
+ */
+function applyCompressor(buffer, thresholdDb, ratio, sampleRate) {
+  if (ratio <= 1) return;
+  console.log(`[DSP] Applying Compressor: ${thresholdDb}dB threshold, ${ratio}:1 ratio`);
+  
+  const threshold = Math.pow(10, thresholdDb / 20);
+  const attackCoeff = Math.exp(-1 / (sampleRate * 0.01));
+  const releaseCoeff = Math.exp(-1 / (sampleRate * 0.1));
+  
+  let envelope = 0;
+  const makeupGain = Math.pow(10, (Math.abs(thresholdDb) * (1 - 1 / ratio) * 0.4) / 20);
+  
+  for (let i = 0; i < buffer.length; i++) {
+    const inputAbs = Math.abs(buffer[i]);
+    
+    if (inputAbs > envelope) {
+      envelope = attackCoeff * envelope + (1 - attackCoeff) * inputAbs;
+    } else {
+      envelope = releaseCoeff * envelope + (1 - releaseCoeff) * inputAbs;
+    }
+    
+    let gain = 1;
+    if (envelope > threshold) {
+      const overDb = 20 * Math.log10(envelope / threshold);
+      const reducedDb = overDb * (1 - 1 / ratio);
+      gain = Math.pow(10, -reducedDb / 20);
+    }
+    
+    buffer[i] = buffer[i] * gain * makeupGain;
+  }
+}
+
+/**
+ * Apply de-essing to a buffer.
+ * Targets sibilant frequencies (4-9kHz) with dynamic gain reduction.
+ */
+function applyDeEsser(buffer, amount, sampleRate) {
+  if (amount <= 0) return;
+  console.log(`[DSP] Applying De-Esser: ${amount}%`);
+  
+  const detectorFilter = createBiquadFilter('peaking', 6500, 2, 0, sampleRate);
+  const bpW0 = 2 * Math.PI * 6500 / sampleRate;
+  const bpAlpha = Math.sin(bpW0) / (2 * 2);
+  detectorFilter.b0 = bpAlpha / (1 + bpAlpha);
+  detectorFilter.b1 = 0;
+  detectorFilter.b2 = -bpAlpha / (1 + bpAlpha);
+  detectorFilter.a1 = -2 * Math.cos(bpW0) / (1 + bpAlpha);
+  detectorFilter.a2 = (1 - bpAlpha) / (1 + bpAlpha);
+  
+  const threshold = 0.15 * (1 - amount / 100);
+  const attackCoeff = Math.exp(-1 / (sampleRate * 0.001));
+  const releaseCoeff = Math.exp(-1 / (sampleRate * 0.05));
+  let envelope = 0;
+  
+  for (let i = 0; i < buffer.length; i++) {
+    const detected = Math.abs(processBiquad(detectorFilter, buffer[i]));
+    
+    if (detected > envelope) {
+      envelope = attackCoeff * envelope + (1 - attackCoeff) * detected;
+    } else {
+      envelope = releaseCoeff * envelope + (1 - releaseCoeff) * detected;
+    }
+    
+    if (envelope > threshold) {
+      const reduction = 1 - ((envelope - threshold) * (amount / 100) * 3);
+      buffer[i] *= Math.max(0.3, Math.min(1, reduction));
+    }
+  }
+}
+
+/**
+ * Apply saturation (harmonic distortion) using tanh soft-clipping.
+ */
+function applySaturation(buffer, drive, sampleRate) {
+  if (drive <= 0) return;
+  console.log(`[DSP] Applying Saturation: ${drive}% drive`);
+  
+  const driveAmount = 1 + (drive / 100) * 5;
+  const outputCompensation = 1 / Math.tanh(driveAmount);
+  
+  for (let i = 0; i < buffer.length; i++) {
+    buffer[i] = Math.tanh(buffer[i] * driveAmount) * outputCompensation;
+  }
+}
+
+/**
+ * Apply the full Channel Strip processing chain to a buffer.
+ * Signal flow: Input → EQ → Compressor → De-Esser → Saturation → Output
+ */
+function applyChannelStrip(buffer, effects, sampleRate) {
+  if (!effects) return [];
+  const explanations = [];
+  
+  if (effects.eq?.enabled && effects.eq?.bands) {
+    applyParametricEQ(buffer, effects.eq.bands, sampleRate);
+    const activeBands = effects.eq.bands.filter(b => b.type === 'highpass' || b.type === 'lowpass' || Math.abs(b.gain) > 0.1);
+    if (activeBands.length > 0) {
+      explanations.push({
+        action: `Channel Strip EQ: ${activeBands.length} active bands`,
+        reason: `Applied parametric EQ with ${activeBands.map(b => `${b.type} at ${Math.round(b.freq)}Hz ${b.gain > 0 ? '+' : ''}${b.gain}dB`).join(', ')}.`,
+        tip: 'EQ shapes the tonal balance. Cut problematic frequencies before boosting desirable ones.'
+      });
+    }
+  }
+  
+  if (effects.compressor?.enabled) {
+    applyCompressor(buffer, effects.compressor.threshold || -15, effects.compressor.ratio || 4, sampleRate);
+    explanations.push({
+      action: `Channel Strip Compressor: ${effects.compressor.threshold}dB, ${effects.compressor.ratio}:1`,
+      reason: `Dynamic range compression at ${effects.compressor.threshold}dB threshold with ${effects.compressor.ratio}:1 ratio.`,
+      tip: 'Use 2-4:1 ratio for gentle vocal compression. Higher ratios (6-10:1) create aggressive limiting.'
+    });
+  }
+  
+  if (effects.deEsser?.enabled) {
+    applyDeEsser(buffer, effects.deEsser.amount || 50, sampleRate);
+    explanations.push({
+      action: `Channel Strip De-Esser: ${effects.deEsser.amount}%`,
+      reason: `Reduced sibilant frequencies (4-9kHz) by ${effects.deEsser.amount}% to smooth harsh consonants.`,
+      tip: 'De-essing prevents ear fatigue. 30-60% is usually enough for natural results.'
+    });
+  }
+  
+  if (effects.saturation?.enabled) {
+    applySaturation(buffer, effects.saturation.drive || 20, sampleRate);
+    explanations.push({
+      action: `Channel Strip Saturation: ${effects.saturation.drive}% drive`,
+      reason: `Added harmonic warmth with ${effects.saturation.drive}% analog-style saturation.`,
+      tip: 'Subtle saturation (10-30%) adds warmth. Higher values create audible distortion.'
+    });
+  }
+  
+  return explanations;
+}
+
 /**
  * Classify a section based on energy profile.
  */
@@ -593,6 +830,36 @@ async function mixTracks(files, timelineState) {
   const barSamples = Math.floor(BAR_DURATION_SECONDS * outputSampleRate);
   const numSections = Math.ceil(maxLength / barSamples);
 
+  // ── Step 3.5: Apply per-track Channel Strip DSP ──
+  console.log('[MixEngine] Applying per-track Channel Strip DSP...');
+  const channelStripExplanations = [];
+  
+  for (const track of timelineState.tracks) {
+    if (!track.effects) continue;
+    
+    const isVocal = track.type === 'vocal' || track.name?.toLowerCase().includes('vocal');
+    const targetBuffer = isVocal ? vocalSamples : instSamples;
+    
+    // Check if any effects are enabled
+    const hasActiveEffects = ['eq', 'compressor', 'deEsser', 'saturation'].some(
+      key => track.effects[key]?.enabled
+    );
+    
+    if (hasActiveEffects) {
+      console.log(`[MixEngine] Processing Channel Strip for: ${track.name}`);
+      const stripExplanations = applyChannelStrip(targetBuffer, track.effects, outputSampleRate);
+      stripExplanations.forEach(exp => {
+        channelStripExplanations.push({
+          ...exp,
+          action: `${track.name}: ${exp.action}`,
+          section: 'Global',
+          time: 'Entire Track',
+          sectionType: 'Channel Strip DSP'
+        });
+      });
+    }
+  }
+
   console.log(`[MixEngine] Assembled timeline. Total duration: ${maxDurationSec.toFixed(1)}s, Sections: ${numSections}`);
 
   // ── Step 4: Analyze each section and make mixing decisions ──
@@ -934,6 +1201,15 @@ async function mixTracks(files, timelineState) {
        action: "Applied Your Custom Effects",
        reason: "We successfully added the EQ, Reverb, and other effects you selected on the right panel to make the tracks sound professional."
      });
+  }
+
+  // Prepend Channel Strip DSP explanations
+  if (channelStripExplanations.length > 0) {
+    allExplanations.unshift(...channelStripExplanations);
+    simpleExplanations.push({
+      action: "Channel Strip Processing Applied",
+      reason: `Applied ${channelStripExplanations.length} real DSP effects (EQ, Compression, De-Essing, Saturation) to shape the tone and dynamics.`
+    });
   }
 
   return {

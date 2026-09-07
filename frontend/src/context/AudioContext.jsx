@@ -418,6 +418,212 @@ export const AudioProvider = ({ children }) => {
     playerSeekRef,
   };
 
+  // ==========================================
+  // NEW: Pitch Correction (VariAudio)
+  // ==========================================
+  const handlePitchCorrection = async (mediaId, options = {}) => {
+    const media = mediaPool.find(m => m.id === mediaId);
+    if (!media) return null;
+
+    setIsLoading(true);
+    setError(null);
+    setLoadingStage(options.analyzeOnly ? 'Analyzing pitch...' : 'Applying pitch correction...');
+
+    const formData = new FormData();
+    formData.append('file', media.file, media.name);
+    formData.append('snapStrength', options.snapStrength || 50);
+    formData.append('timingStrength', options.timingStrength || 0);
+    formData.append('formantPreserve', options.formantPreserve !== false ? 'true' : 'false');
+    formData.append('analyzeOnly', options.analyzeOnly ? 'true' : 'false');
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/pitch-correct', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          if (percent < 100) {
+            setLoadingStage(`Uploading... ${percent}%`);
+          } else {
+            setLoadingStage(options.analyzeOnly ? 'Detecting pitch...' : 'Correcting pitch & timing...');
+          }
+        },
+      });
+
+      const { data } = response;
+
+      if (!options.analyzeOnly && data.processed_audio_base64) {
+        // Create a new media pool entry with the corrected audio
+        const res = await fetch(data.processed_audio_base64);
+        const blob = await res.blob();
+        const baseName = media.name.replace(/\.[^/.]+$/, "");
+        const newFileName = `${baseName} (Pitch Corrected).wav`;
+        const newFile = new File([blob], newFileName, { type: 'audio/wav' });
+        addMediaToPool(newFile);
+      }
+
+      return data;
+    } catch (err) {
+      console.error(err);
+      setError('Pitch correction failed: ' + (err.response?.data?.error || err.message));
+      return null;
+    } finally {
+      setIsLoading(false);
+      setLoadingStage('');
+    }
+  };
+
+  // ==========================================
+  // NEW: Audio Alignment
+  // ==========================================
+  const handleAlignment = async (referenceTrackId, targetTrackIds) => {
+    const refTrack = tracks.find(t => t.id === referenceTrackId);
+    if (!refTrack || refTrack.clips.length === 0) {
+      setError('Reference track has no clips.');
+      return null;
+    }
+
+    const targetTracks = tracks.filter(t => targetTrackIds.includes(t.id) && t.clips.length > 0);
+    if (targetTracks.length === 0) {
+      setError('No target tracks with clips selected.');
+      return null;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setLoadingStage('Aligning tracks...');
+
+    const formData = new FormData();
+    
+    // Add reference track's first clip
+    const refMedia = mediaPool.find(m => m.id === refTrack.clips[0].mediaId);
+    if (!refMedia) { setError('Reference clip not found.'); setIsLoading(false); return null; }
+    formData.append('files', refMedia.file, refMedia.name);
+    formData.append('referenceIndex', '0');
+
+    // Add target tracks' first clips
+    for (const track of targetTracks) {
+      const media = mediaPool.find(m => m.id === track.clips[0].mediaId);
+      if (media) {
+        formData.append('files', media.file, media.name);
+      }
+    }
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/align', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+
+      const { data } = response;
+
+      if (data.success && data.alignments) {
+        // Apply alignment offsets to track clips
+        setTracks(prev => prev.map(track => {
+          const alignIdx = targetTracks.findIndex(t => t.id === track.id);
+          if (alignIdx >= 0 && data.alignments[alignIdx]) {
+            const delaySeconds = data.alignments[alignIdx].global_delay_seconds || 0;
+            return {
+              ...track,
+              clips: track.clips.map(clip => ({
+                ...clip,
+                offset: clip.offset + delaySeconds
+              }))
+            };
+          }
+          return track;
+        }));
+      }
+
+      return data;
+    } catch (err) {
+      console.error(err);
+      setError('Alignment failed: ' + (err.response?.data?.error || err.message));
+      return null;
+    } finally {
+      setIsLoading(false);
+      setLoadingStage('');
+    }
+  };
+
+  // ==========================================
+  // NEW: Channel Strip Presets
+  // ==========================================
+  const channelStripPresets = {
+    'Clean Vocal': {
+      eq: { enabled: true, bands: [
+        { id: 1, type: 'highpass', freq: 80, gain: 0, q: 1 },
+        { id: 2, type: 'peaking', freq: 3000, gain: 2, q: 1.5 },
+        { id: 3, type: 'peaking', freq: 800, gain: -1.5, q: 1 },
+        { id: 4, type: 'highshelf', freq: 12000, gain: 1.5, q: 1 }
+      ]},
+      deEsser: { enabled: true, amount: 40 },
+      compressor: { enabled: true, threshold: -18, ratio: 3 },
+      saturation: { enabled: false, drive: 0 }
+    },
+    'Rock Vocal': {
+      eq: { enabled: true, bands: [
+        { id: 1, type: 'highpass', freq: 120, gain: 0, q: 1 },
+        { id: 2, type: 'peaking', freq: 2500, gain: 3, q: 1.2 },
+        { id: 3, type: 'peaking', freq: 500, gain: -2, q: 1 },
+        { id: 4, type: 'highshelf', freq: 8000, gain: 2, q: 1 }
+      ]},
+      deEsser: { enabled: true, amount: 50 },
+      compressor: { enabled: true, threshold: -15, ratio: 5 },
+      saturation: { enabled: true, drive: 25 }
+    },
+    'Warm Vocal': {
+      eq: { enabled: true, bands: [
+        { id: 1, type: 'highpass', freq: 60, gain: 0, q: 1 },
+        { id: 2, type: 'peaking', freq: 200, gain: 2, q: 0.8 },
+        { id: 3, type: 'peaking', freq: 4000, gain: -1, q: 1 },
+        { id: 4, type: 'highshelf', freq: 10000, gain: -2, q: 1 }
+      ]},
+      deEsser: { enabled: true, amount: 60 },
+      compressor: { enabled: true, threshold: -20, ratio: 3 },
+      saturation: { enabled: true, drive: 15 }
+    },
+    'Bright Pop': {
+      eq: { enabled: true, bands: [
+        { id: 1, type: 'highpass', freq: 100, gain: 0, q: 1 },
+        { id: 2, type: 'peaking', freq: 5000, gain: 3, q: 1 },
+        { id: 3, type: 'peaking', freq: 250, gain: -2, q: 1 },
+        { id: 4, type: 'highshelf', freq: 14000, gain: 3, q: 1 }
+      ]},
+      deEsser: { enabled: true, amount: 55 },
+      compressor: { enabled: true, threshold: -16, ratio: 4 },
+      saturation: { enabled: false, drive: 0 }
+    }
+  };
+
+  const applyChannelStripPreset = (trackId, presetName) => {
+    const preset = channelStripPresets[presetName];
+    if (!preset) return;
+    
+    setTracks(prev => prev.map(t => {
+      if (t.id === trackId) {
+        return {
+          ...t,
+          effects: {
+            ...t.effects,
+            eq: structuredClone(preset.eq),
+            deEsser: structuredClone(preset.deEsser),
+            compressor: structuredClone(preset.compressor),
+            saturation: structuredClone(preset.saturation)
+          }
+        };
+      }
+      return t;
+    }));
+  };
+
+  value.handlePitchCorrection = handlePitchCorrection;
+  value.handleAlignment = handleAlignment;
+  value.channelStripPresets = channelStripPresets;
+  value.applyChannelStripPreset = applyChannelStripPreset;
+
   if (!isProjectLoaded) {
     return (
       <div className="fixed inset-0 bg-[#0a0a0a] flex items-center justify-center text-gray-400 font-mono text-sm tracking-widest uppercase">
