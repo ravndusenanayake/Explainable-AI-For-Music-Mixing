@@ -815,11 +815,13 @@ async function mixTracks(files, timelineState) {
       const endSampleIndex = Math.min(clipSamples.length, Math.floor(trimEndSec * outputSampleRate));
 
       let writeOffset = Math.floor(clip.offset * outputSampleRate);
+      
+      const clipGain = clip.gain !== undefined ? clip.gain : 1;
 
       // Add (sum) clip audio to the target buffer
       for (let i = startSampleIndex; i < endSampleIndex; i++) {
         if (writeOffset < maxSamples) {
-          targetBuffer[writeOffset] += clipSamples[i];
+          targetBuffer[writeOffset] += clipSamples[i] * clipGain;
         }
         writeOffset++;
       }

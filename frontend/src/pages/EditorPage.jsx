@@ -42,9 +42,42 @@ const formatTimeRuler = (sec) => {
 // ==========================================
 // COMPONENT: Clip
 // ==========================================
-const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime, trackHeight, activeTool, onSplit, onToggleMute }) => {
+const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime, trackHeight, activeTool, onSplit, onToggleMute, onUpdateClipGain }) => {
   const containerRef = useRef(null);
   const [duration, setDuration] = useState(0);
+  const [isDraggingGain, setIsDraggingGain] = useState(false);
+  const [localGain, setLocalGain] = useState(clip.gain !== undefined ? clip.gain : 1);
+
+  useEffect(() => {
+    setLocalGain(clip.gain !== undefined ? clip.gain : 1);
+  }, [clip.gain]);
+
+  const handleGainPointerDown = (e) => {
+    e.stopPropagation();
+    setIsDraggingGain(true);
+    
+    const startY = e.clientY;
+    const startGain = localGain;
+    
+    const onMove = (eMove) => {
+      const deltaY = startY - eMove.clientY;
+      let newGain = startGain + (deltaY / 100);
+      newGain = Math.max(0, Math.min(3, newGain)); // cap at 0 to 3
+      setLocalGain(newGain);
+      if (onUpdateClipGain) onUpdateClipGain(clip.id, newGain);
+    };
+    
+    const onUp = () => {
+      setIsDraggingGain(false);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const gainDb = localGain === 0 ? '-inf' : (20 * Math.log10(localGain)).toFixed(1);
 
   useEffect(() => {
     if (!clip.file || !containerRef.current) return;
@@ -141,6 +174,16 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       {/* Clip Header with Name */}
       <div className="absolute top-0 left-0 right-0 h-[16px] bg-black/40 flex items-center justify-between px-1.5 z-10 border-b border-black/30">
         <span className="text-[9px] font-bold text-white/90 truncate leading-none drop-shadow-md">{clip.name}</span>
+        
+        {/* Gain Handle */}
+        <div 
+           onPointerDown={handleGainPointerDown}
+           className="w-4 h-4 flex items-center justify-center cursor-ns-resize hover:bg-white/20 rounded-full mx-1 absolute left-1/2 -translate-x-1/2"
+           title={`Clip Gain: ${gainDb}dB`}
+        >
+          <div className="w-2 h-0.5 bg-white/80" />
+        </div>
+
         <button
           onClick={(e) => { e.stopPropagation(); onRemove(clip.id); }}
           className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
@@ -159,6 +202,17 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       {/* Trim handles */}
       <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-r border-black/20" />
       <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-l border-black/20" />
+      
+      {/* Visual Gain Line overlay */}
+      <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: `${Math.max(16, trackHeight - (localGain / 3) * trackHeight)}px` }}>
+         <div className="w-full border-t border-dashed border-white/50" />
+      </div>
+
+      {isDraggingGain && (
+        <div className="absolute top-[18px] left-1/2 -translate-x-1/2 bg-black text-white text-[9px] px-1 py-0.5 rounded z-30">
+          {gainDb} dB
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -272,7 +326,7 @@ const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream
 // ==========================================
 // COMPONENT: Track
 // ==========================================
-const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack, activeTool, onSplitClip, onToggleClipMute, onToggleRecordEnable, onToggleMonitor, onToggleRead, onToggleWrite, isRecording, recordStartTime, targetRecordTrackId, activeStreamRef }) => {
+const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack, activeTool, onSplitClip, onToggleClipMute, onUpdateClipGain, onToggleRecordEnable, onToggleMonitor, onToggleRead, onToggleWrite, isRecording, recordStartTime, targetRecordTrackId, activeStreamRef }) => {
   const trackRef = useRef(null);
   const [isLocked, setIsLocked] = useState(false);
 
@@ -368,6 +422,7 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
             zoomLevel={zoomLevel} isSelected={selectedClipId === clip.id} onSelect={onSelectClip}
             clipDurations={clipDurations} clipWsRefs={clipWsRefs} playheadTime={playheadTime}
             trackHeight={trackHeight} activeTool={activeTool} onSplit={onSplitClip} onToggleMute={onToggleClipMute}
+            onUpdateClipGain={isLocked ? () => { } : onUpdateClipGain}
           />
         ))}
         {track.clips.length === 0 && (
@@ -547,27 +602,119 @@ const EditorPage = () => {
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
 
-  // Live Recording State
+  // ==========================================
+  // WAV ENCODING UTILITY
+  // ==========================================
+  const encodeWAV = useCallback((samples, sampleRate) => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    // RIFF header
+    const writeString = (offset, str) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);          // chunk size
+    view.setUint16(20, 1, true);           // PCM format
+    view.setUint16(22, 1, true);           // mono
+    view.setUint32(24, sampleRate, true);  // sample rate
+    view.setUint32(28, sampleRate * 2, true); // byte rate
+    view.setUint16(32, 2, true);           // block align
+    view.setUint16(34, 16, true);          // bits per sample
+    writeString(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    // Convert Float32 samples to Int16
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  }, []);
+
+  // ==========================================
+  // LIVE RECORDING STATE (Web Audio API PCM)
+  // ==========================================
   const [isRecording, setIsRecording] = useState(false);
   const [recordStartTime, setRecordStartTime] = useState(null);
   const [targetRecordTrackId, setTargetRecordTrackId] = useState(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const [measuredLatencyMs, setMeasuredLatencyMs] = useState(null);
   const activeStreamRef = useRef(null);
   const recordingStartOffsetRef = useRef(0);
   const recordingTargetTrackRef = useRef(null);
+  const recordAudioCtxRef = useRef(null);
+  const scriptProcessorRef = useRef(null);
+  const pcmBuffersRef = useRef([]);
+  const recordingSampleRateRef = useRef(44100);
+  const recordingLatencyRef = useRef(0);
 
   const handleStop = () => {
     setIsPlaying(false);
     isStartingRecordRef.current = false;
     if (isRecording) {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
+      // Stop the ScriptProcessor and disconnect nodes
+      if (scriptProcessorRef.current) {
+        scriptProcessorRef.current.disconnect();
+        scriptProcessorRef.current.onaudioprocess = null;
+        scriptProcessorRef.current = null;
       }
+
+      // Finalize recording: merge PCM buffers and encode to WAV
+      const allBuffers = pcmBuffersRef.current;
+      if (allBuffers.length > 0) {
+        const totalLength = allBuffers.reduce((sum, buf) => sum + buf.length, 0);
+        const merged = new Float32Array(totalLength);
+        let offset = 0;
+        for (const buf of allBuffers) {
+          merged.set(buf, offset);
+          offset += buf.length;
+        }
+
+        const sampleRate = recordingSampleRateRef.current;
+        const wavBlob = encodeWAV(merged, sampleRate);
+        const file = new File([wavBlob], `Live_Recording_${Date.now()}.wav`, { type: 'audio/wav' });
+        const newMedia = addMediaToPool(file);
+
+        const finalTrackId = recordingTargetTrackRef.current;
+        if (finalTrackId) {
+          pushUndo();
+          // Apply latency compensation: shift the clip earlier by the measured input latency
+          const latencyCompensation = recordingLatencyRef.current;
+          const compensatedOffset = Math.max(0, recordingStartOffsetRef.current - latencyCompensation);
+          console.log(`[Recording] Latency compensation: ${(latencyCompensation * 1000).toFixed(1)}ms | Raw offset: ${recordingStartOffsetRef.current.toFixed(3)}s → Compensated: ${compensatedOffset.toFixed(3)}s`);
+
+          const newClip = {
+            id: `clip_${Date.now()}`,
+            mediaId: newMedia.id,
+            file: file,
+            offset: compensatedOffset,
+            name: 'Live Take'
+          };
+          setTracks(prev => prev.map(t =>
+            t.id === finalTrackId ? { ...t, clips: [...t.clips, newClip] } : t
+          ));
+        }
+      }
+      pcmBuffersRef.current = [];
+
+      // Close the recording AudioContext
+      if (recordAudioCtxRef.current && recordAudioCtxRef.current.state !== 'closed') {
+        recordAudioCtxRef.current.close();
+        recordAudioCtxRef.current = null;
+      }
+
+      // Stop mic stream tracks
+      if (activeStreamRef.current) {
+        activeStreamRef.current.getTracks().forEach(track => track.stop());
+        activeStreamRef.current = null;
+      }
+
       setIsRecording(false);
       setRecordStartTime(null);
       setTargetRecordTrackId(null);
-      activeStreamRef.current = null;
     }
   };
 
@@ -585,8 +732,17 @@ const EditorPage = () => {
     } else {
       try {
         isStartingRecordRef.current = true;
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
+
+        // Request mic with low-latency constraints, no browser processing
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            autoGainControl: false,
+            noiseSuppression: false,
+            latency: 0, // request lowest possible latency
+          }
+        });
+
         // Prevent race condition if user clicked stop before stream initialized
         if (!isStartingRecordRef.current) {
           stream.getTracks().forEach(track => track.stop());
@@ -594,52 +750,48 @@ const EditorPage = () => {
         }
 
         activeStreamRef.current = stream;
-        
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
 
-        // Save current playhead and target track for when the recording finishes
+        // Create a dedicated AudioContext for recording (clean/dry signal path)
+        const recCtx = new (window.AudioContext || window.webkitAudioContext)({
+          sampleRate: 44100,
+          latencyHint: 'interactive'
+        });
+        recordAudioCtxRef.current = recCtx;
+        recordingSampleRateRef.current = recCtx.sampleRate;
+
+        // Measure the browser's input latency for compensation
+        const baseLatency = recCtx.baseLatency || 0;
+        const outputLatency = recCtx.outputLatency || 0;
+        const totalLatency = baseLatency + outputLatency;
+        recordingLatencyRef.current = totalLatency;
+        setMeasuredLatencyMs(Math.round(totalLatency * 1000));
+        console.log(`[Recording] AudioContext latency — base: ${(baseLatency * 1000).toFixed(1)}ms, output: ${(outputLatency * 1000).toFixed(1)}ms, total: ${(totalLatency * 1000).toFixed(1)}ms`);
+
+        // Create source from mic stream (dry/clean, no effects)
+        const source = recCtx.createMediaStreamSource(stream);
+
+        // ScriptProcessorNode for PCM sample capture
+        // Buffer size 4096 = ~93ms at 44100Hz — good balance of latency vs performance
+        const processor = recCtx.createScriptProcessor(4096, 1, 1);
+        scriptProcessorRef.current = processor;
+        pcmBuffersRef.current = [];
+
+        processor.onaudioprocess = (e) => {
+          // Capture the raw input samples (channel 0, mono)
+          const inputData = e.inputBuffer.getChannelData(0);
+          // Copy the buffer since it gets reused
+          pcmBuffersRef.current.push(new Float32Array(inputData));
+        };
+
+        // Connect: Mic → ScriptProcessor → destination (needed to keep the processor alive)
+        source.connect(processor);
+        processor.connect(recCtx.destination);
+
+        // Save current playhead and target track
         recordingStartOffsetRef.current = playheadTime;
         const targetTrackId = selectedTrackId || tracks[0]?.id;
         recordingTargetTrackRef.current = targetTrackId;
 
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = () => {
-          const mimeType = mediaRecorder.mimeType || 'audio/webm';
-          let ext = 'webm';
-          if (mimeType.includes('mp4')) ext = 'mp4';
-          else if (mimeType.includes('ogg')) ext = 'ogg';
-
-          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-          const file = new File([audioBlob], `Live_Recording_${Date.now()}.${ext}`, { type: mimeType });
-          
-          const newMedia = addMediaToPool(file);
-          
-          const finalTrackId = recordingTargetTrackRef.current;
-          if (finalTrackId) {
-            pushUndo();
-            const newClip = {
-              id: `clip_${Date.now()}`,
-              mediaId: newMedia.id,
-              file: file,
-              offset: recordingStartOffsetRef.current,
-              name: 'Live Take'
-            };
-            setTracks(prev => prev.map(t => 
-              t.id === finalTrackId ? { ...t, clips: [...t.clips, newClip] } : t
-            ));
-          }
-          
-          stream.getTracks().forEach(track => track.stop());
-        };
-
-        mediaRecorder.start();
         setIsRecording(true);
         setIsPlaying(true);
         setRecordStartTime(playheadTime);
@@ -742,8 +894,10 @@ const EditorPage = () => {
           t.clips.forEach(c => {
             const ws = clipWsRefs.current[c.id];
             if (ws) {
-              // Apply volume (0.0 to 1.0)
-              if (ws.getVolume() !== trackVol) ws.setVolume(trackVol);
+              // Apply volume (0.0 to 1.0) factoring in clip gain
+              const clipGain = c.gain !== undefined ? c.gain : 1;
+              const finalVol = Math.max(0, trackVol * clipGain);
+              if (ws.getVolume() !== finalVol) ws.setVolume(finalVol);
 
               const clipStart = c.offset;
               const clipDur = (c.trimEndSec || clipDurations.current[c.id] || ws.getDuration()) - (c.trimStartSec || 0);
@@ -852,6 +1006,10 @@ const EditorPage = () => {
     pushUndo();
     setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.map(c => c.id === clipId ? { ...c, offset: newOffset } : c) })));
   };
+
+  const handleUpdateClipGain = useCallback((clipId, newGain) => {
+    setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.map(c => c.id === clipId ? { ...c, gain: newGain } : c) })));
+  }, [setTracks]);
 
   const handleRemoveClip = useCallback((clipId) => {
     setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.filter(c => c.id !== clipId) })));
@@ -1187,14 +1345,18 @@ const EditorPage = () => {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
               </button>
               
-              {/* Record Button */}
               <button
                 onClick={handleRecordToggle}
                 className={`w-9 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors ${isRecording ? 'animate-pulse bg-red-900/40' : ''}`}
-                title="Record (Live)"
+                title={isRecording && measuredLatencyMs !== null ? `Recording — Latency: ${measuredLatencyMs}ms (compensated)` : 'Record (Live)'}
               >
                 <Circle className={`w-3.5 h-3.5 ${isRecording ? 'text-red-500 fill-red-500' : 'text-[#c0c0c0]'}`} />
               </button>
+              {isRecording && measuredLatencyMs !== null && (
+                <span className="text-[9px] text-yellow-400 font-mono ml-0.5 whitespace-nowrap" title="Input latency (auto-compensated)">
+                  {measuredLatencyMs}ms
+                </span>
+              )}
 
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
@@ -1305,6 +1467,7 @@ const EditorPage = () => {
                         onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
                         onSelectTrack={setSelectedTrackId} isSelectedTrack={selectedTrackId === track.id}
                         isRecording={isRecording} recordStartTime={recordStartTime} targetRecordTrackId={targetRecordTrackId} activeStreamRef={activeStreamRef.current}
+                        onUpdateClipGain={handleUpdateClipGain}
                       />
                     ))}
 
