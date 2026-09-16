@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAudioContext } from '../context/AudioContext';
 import { useNavigate } from 'react-router-dom';
 import WaveSurfer from 'wavesurfer.js';
+import Spectrogram from 'wavesurfer.js/dist/plugins/spectrogram.esm.js';
 import {
-  Play, Pause, Waves, ArrowRight, Plus, Upload, Music,
+  Play, Pause, Waves, ArrowRight, Plus, Upload, Music, Download,
   Volume2, Trash2, Scissors, Undo2, Redo2, Copy, Clipboard,
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
   PlaySquare, Repeat, Settings2, SlidersHorizontal, Sparkles,
   ChevronUp, ChevronDown, Maximize2, Minimize2, X,
-  Settings, Sliders, Wind, Zap, Disc, Circle, Wand2, Link2, Layers
+  Settings, Sliders, Wind, Zap, Disc, Circle, Wand2, Link2, Layers, Snowflake
 } from 'lucide-react';
 import MixConsole from '../components/MixConsole';
 import MixExplainer from '../components/MixExplainer';
@@ -42,7 +43,7 @@ const formatTimeRuler = (sec) => {
 // ==========================================
 // COMPONENT: Clip
 // ==========================================
-const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime, trackHeight, activeTool, onSplit, onToggleMute, onUpdateClipGain }) => {
+const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime, trackHeight, activeTool, onSplit, onToggleMute, onUpdateClipGain, showSpectrogram }) => {
   const containerRef = useRef(null);
   const [duration, setDuration] = useState(0);
   const [isDraggingGain, setIsDraggingGain] = useState(false);
@@ -82,7 +83,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
   useEffect(() => {
     if (!clip.file || !containerRef.current) return;
     const url = URL.createObjectURL(clip.file);
-    const ws = WaveSurfer.create({
+    const wsOptions = {
       container: containerRef.current,
       waveColor: 'rgba(255,255,255,0.4)',
       progressColor: 'rgba(255,255,255,0.9)',
@@ -92,7 +93,20 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       barWidth: 2,
       barGap: 1,
       barRadius: 0,
-    });
+      plugins: []
+    };
+
+    if (showSpectrogram) {
+      wsOptions.plugins.push(
+        Spectrogram.create({
+          labels: true,
+          height: trackHeight - 20,
+          splitChannels: false,
+        })
+      );
+    }
+
+    const ws = WaveSurfer.create(wsOptions);
     ws.load(url);
     ws.on('ready', () => {
       const d = ws.getDuration();
@@ -105,7 +119,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       ws.destroy();
       URL.revokeObjectURL(url);
     };
-  }, [clip.file]); // Removed trackHeight from here so we don't reload clip on zoom
+  }, [clip.file, showSpectrogram]); // Removed trackHeight from here so we don't reload clip on zoom
 
   // Dynamic Height Update
   useEffect(() => {
@@ -326,7 +340,7 @@ const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream
 // ==========================================
 // COMPONENT: Track
 // ==========================================
-const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack, activeTool, onSplitClip, onToggleClipMute, onUpdateClipGain, onToggleRecordEnable, onToggleMonitor, onToggleRead, onToggleWrite, isRecording, recordStartTime, targetRecordTrackId, activeStreamRef }) => {
+const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack, activeTool, onSplitClip, onToggleClipMute, onUpdateClipGain, onToggleRecordEnable, onToggleMonitor, onToggleRead, onToggleWrite, isRecording, recordStartTime, targetRecordTrackId, activeStreamRef, showSpectrogram, onToggleFreeze }) => {
   const trackRef = useRef(null);
   const [isLocked, setIsLocked] = useState(false);
 
@@ -369,35 +383,48 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
             {trackIcons[track.color]}
             <span className="text-[10px] font-bold text-gray-200 truncate">{track.name}</span>
           </div>
-          <button
-            onClick={() => setIsLocked(!isLocked)}
-            className={`w-4 h-4 rounded-[2px] flex items-center justify-center transition-colors ${isLocked ? 'bg-yellow-500/30 text-yellow-400' : 'text-[#666] hover:text-gray-300'}`}
-          >
-            <Lock className="w-2.5 h-2.5" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => onToggleFreeze(track.id)}
+              className={`w-4 h-4 rounded-[2px] flex items-center justify-center transition-colors ${track.isFrozen ? 'bg-cyan-500/30 text-cyan-400' : 'text-[#666] hover:text-cyan-300'}`}
+              title="Freeze Track (Pre-render)"
+            >
+              <Snowflake className="w-2.5 h-2.5" />
+            </button>
+            <button
+              onClick={() => setIsLocked(!isLocked)}
+              className={`w-4 h-4 rounded-[2px] flex items-center justify-center transition-colors ${isLocked ? 'bg-yellow-500/30 text-yellow-400' : 'text-[#666] hover:text-gray-300'}`}
+              title="Lock Track"
+            >
+              <Lock className="w-2.5 h-2.5" />
+            </button>
+          </div>
         </div>
 
         {/* Middle row: Mute & Solo & Volume */}
         <div className="flex items-center gap-1 mb-1">
           <button
-            onClick={() => onMuteToggle(track.id)}
-            className={`w-6 h-5 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isMuted ? 'bg-[#eab308] border-[#ca8a04] text-black shadow-inner' : 'bg-[#1a1a1a] border-[#111] text-[#777] hover:bg-[#222]'}`}
+            onClick={() => !track.isFrozen && onMuteToggle(track.id)}
+            disabled={track.isFrozen}
+            className={`w-6 h-5 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isMuted ? 'bg-[#eab308] border-[#ca8a04] text-black shadow-inner' : 'bg-[#1a1a1a] border-[#111] text-[#777] hover:bg-[#222]'} disabled:opacity-50`}
           >
             M
           </button>
           <button
-            onClick={() => onSoloToggle(track.id)}
-            className={`w-6 h-5 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isSoloed ? 'bg-[#ef4444] border-[#dc2626] text-white shadow-inner' : 'bg-[#1a1a1a] border-[#111] text-[#777] hover:bg-[#222]'}`}
+            onClick={() => !track.isFrozen && onSoloToggle(track.id)}
+            disabled={track.isFrozen}
+            className={`w-6 h-5 rounded-[2px] flex items-center justify-center text-[10px] font-bold transition-colors border ${track.isSoloed ? 'bg-[#ef4444] border-[#dc2626] text-white shadow-inner' : 'bg-[#1a1a1a] border-[#111] text-[#777] hover:bg-[#222]'} disabled:opacity-50`}
           >
             S
           </button>
 
-          <div className="flex-1 flex items-center ml-1 bg-[#1a1a1a] p-0.5 rounded-[2px] border border-[#111] shadow-inner">
+          <div className={`flex-1 flex items-center ml-1 p-0.5 rounded-[2px] border shadow-inner ${track.isFrozen ? 'bg-[#111] border-[#0a0a0a]' : 'bg-[#1a1a1a] border-[#111]'}`}>
             <input
               type="range" min="0" max="1" step="0.01"
               value={track.volume !== undefined ? track.volume : 1}
               onChange={(e) => onVolumeChange(track.id, parseFloat(e.target.value))}
-              className="w-full h-2 bg-black rounded-[1px] appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer hover:[&::-webkit-slider-thumb]:bg-cyan-400"
+              disabled={track.isFrozen}
+              className={`w-full h-2 rounded-[1px] appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-[1px] ${track.isFrozen ? 'bg-[#222] [&::-webkit-slider-thumb]:bg-[#444]' : 'bg-black [&::-webkit-slider-thumb]:bg-[#888] cursor-pointer hover:[&::-webkit-slider-thumb]:bg-cyan-400'}`}
             />
           </div>
         </div>
@@ -409,20 +436,26 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onPointerDown={handleTrackClick}
-        className="flex-1 relative bg-[#1c1c1c] hover:bg-[#1f1f1f] transition-colors overflow-hidden group border-r border-[#222]"
+        className={`flex-1 relative transition-colors overflow-hidden group border-r border-[#222] ${track.isFrozen ? 'bg-cyan-950/20' : 'bg-[#1c1c1c] hover:bg-[#1f1f1f]'}`}
       >
         {/* Subtle grid line visual */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(90deg,#ffffff_1px,transparent_1px)] bg-[length:20px_100%]" />
 
+        {/* Frozen Overlay */}
+        {track.isFrozen && (
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc4JyBoZWlnaHQ9JzgnPgo8cmVjdCB3aWR0aD0nOCcgaGVpZ2h0PSc4JyBmaWxsPScjZmZmJyBmaWxsLW9wYWNpdHk9JzAuMDInLz4KPHBhdGggZD0nTTAsMEw4LDhaTTEsN0w3LDFaJyBzdHJva2U9JyNmZmYnIHN0cm9rZS1vcGFjaXR5PScwLjAyJyBzdHJva2Utd2lkdGg9JzEnLz4KPC9zdmc+')] pointer-events-none z-10" />
+        )}
+
         {track.clips.map(clip => (
           <Clip
             key={clip.id} clip={clip} trackColor={track.color}
-            onUpdateOffset={isLocked ? () => { } : onUpdateClipOffset}
-            onRemove={isLocked ? () => { } : onRemoveClip}
+            onUpdateOffset={(id, offset) => isLocked ? {} : onUpdateClipOffset(track.id, id, offset)}
+            onRemove={(id) => isLocked ? {} : onRemoveClip(track.id, id)}
             zoomLevel={zoomLevel} isSelected={selectedClipId === clip.id} onSelect={onSelectClip}
             clipDurations={clipDurations} clipWsRefs={clipWsRefs} playheadTime={playheadTime}
             trackHeight={trackHeight} activeTool={activeTool} onSplit={onSplitClip} onToggleMute={onToggleClipMute}
-            onUpdateClipGain={isLocked ? () => { } : onUpdateClipGain}
+            onUpdateClipGain={(id, gain) => isLocked ? {} : onUpdateClipGain(track.id, id, gain)}
+            showSpectrogram={showSpectrogram}
           />
         ))}
         {track.clips.length === 0 && (
@@ -567,7 +600,7 @@ const EditorPage = () => {
     mediaPool, addMediaToPool, removeMediaFromPool, tracks, setTracks, updateTrackEffect,
     handleMix, isLoading, loadingStage, automationData,
     processedAudioUrl, sections, globalSummary, simpleExplanations,
-    eqSettings, setEqSettings
+    eqSettings, setEqSettings, handleStemSplit
   } = useAudioContext();
 
   const navigate = useNavigate();
@@ -578,8 +611,26 @@ const EditorPage = () => {
 
   // DAW View State
   const [zoomLevel, setZoomLevel] = useState(50);
+
+  // Handle Ctrl + Scroll for horizontal zooming
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const handleWheel = (e) => {
+      // Allow Ctrl+Scroll or just normal horizontal scroll to adjust zoom if needed
+      // Actually, many DAWs use Ctrl+Scroll for zoom
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 10 : -10;
+        setZoomLevel(prev => Math.min(200, Math.max(10, prev + delta)));
+      }
+    };
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
   const [trackHeight, setTrackHeight] = useState(72); // Dynamic track height
   const [showMixer, setShowMixer] = useState(false);
+  const [showSpectrogram, setShowSpectrogram] = useState(false);
   const [mixerExpanded, setMixerExpanded] = useState(false);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
 
@@ -601,6 +652,44 @@ const EditorPage = () => {
   const [clipboard, setClipboard] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
+
+  // BPM / Tempo State
+  const [detectedBpm, setDetectedBpm] = useState(null);
+  const [detectedKey, setDetectedKey] = useState(null);
+  const [detectedChords, setDetectedChords] = useState([]);
+  const [isBpmLoading, setIsBpmLoading] = useState(false);
+
+  // Reference Track State
+  const [referenceAudioFile, setReferenceAudioFile] = useState(null);
+  const [isReferenceActive, setIsReferenceActive] = useState(false);
+  const referenceAudioRef = useRef(new Audio());
+
+  useEffect(() => {
+    if (referenceAudioFile) {
+      const url = URL.createObjectURL(referenceAudioFile);
+      referenceAudioRef.current.src = url;
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [referenceAudioFile]);
+
+  // A/B Muting Logic
+  useEffect(() => {
+    // Mute/Unmute wavesurfers based on A/B state
+    Object.keys(clipWsRefs.current).forEach(id => {
+      const ws = clipWsRefs.current[id];
+      if (ws) {
+        ws.setMuted(isReferenceActive);
+      }
+    });
+    
+    // Mute/Unmute reference track
+    if (referenceAudioRef.current) {
+      referenceAudioRef.current.muted = !isReferenceActive;
+    }
+  }, [isReferenceActive, clipWsRefs]);
+
+  // Marker Track State
+  const [markers, setMarkers] = useState([]);
 
   // ==========================================
   // WAV ENCODING UTILITY
@@ -653,6 +742,8 @@ const EditorPage = () => {
 
   const handleStop = () => {
     setIsPlaying(false);
+    handleSeek(0);
+    setRecordStartTime(null);
     isStartingRecordRef.current = false;
     if (isRecording) {
       // Stop the ScriptProcessor and disconnect nodes
@@ -770,6 +861,10 @@ const EditorPage = () => {
         // Create source from mic stream (dry/clean, no effects)
         const source = recCtx.createMediaStreamSource(stream);
 
+        // Add a GainNode to boost microphone input volume during recording
+        const micGainNode = recCtx.createGain();
+        micGainNode.gain.value = 2.5; // Boost volume by 2.5x
+
         // ScriptProcessorNode for PCM sample capture
         // Buffer size 4096 = ~93ms at 44100Hz — good balance of latency vs performance
         const processor = recCtx.createScriptProcessor(4096, 1, 1);
@@ -783,8 +878,9 @@ const EditorPage = () => {
           pcmBuffersRef.current.push(new Float32Array(inputData));
         };
 
-        // Connect: Mic → ScriptProcessor → destination (needed to keep the processor alive)
-        source.connect(processor);
+        // Connect: Mic → GainNode → ScriptProcessor → destination (needed to keep the processor alive)
+        source.connect(micGainNode);
+        micGainNode.connect(processor);
         processor.connect(recCtx.destination);
 
         // Save current playhead and target track
@@ -830,10 +926,22 @@ const EditorPage = () => {
   useEffect(() => { loopRightRef.current = loopRight; }, [loopRight]);
 
   const seekRequestRef = useRef(null);
-  const handleSeek = useCallback((time) => {
-    seekRequestRef.current = time;
+  const handleSeek = (time) => {
     setPlayheadTime(time);
-  }, []);
+    if (referenceAudioRef.current.src) {
+      referenceAudioRef.current.currentTime = time;
+    }
+    Object.values(clipWsRefs.current).forEach(ws => {
+      if (ws) {
+        try {
+          const duration = ws.getDuration() || 0.1;
+          ws.seekTo(Math.min(1, Math.max(0, time / duration)));
+        } catch (err) {
+          console.log('seek err', err);
+        }
+      }
+    });
+  };
 
   // Track Header Actions
   const handleMuteToggle = (trackId) => {
@@ -896,7 +1004,7 @@ const EditorPage = () => {
             if (ws) {
               // Apply volume (0.0 to 1.0) factoring in clip gain
               const clipGain = c.gain !== undefined ? c.gain : 1;
-              const finalVol = Math.max(0, trackVol * clipGain);
+              const finalVol = Math.max(0, Math.min(1, trackVol * clipGain));
               if (ws.getVolume() !== finalVol) ws.setVolume(finalVol);
 
               const clipStart = c.offset;
@@ -918,6 +1026,11 @@ const EditorPage = () => {
             }
           });
         });
+        
+        if (referenceAudioRef.current.src) {
+          referenceAudioRef.current.currentTime = currentPlayhead;
+          referenceAudioRef.current.play().catch(e => console.log(e));
+        }
 
         animationFrame = requestAnimationFrame(updatePlayhead);
       };
@@ -930,6 +1043,9 @@ const EditorPage = () => {
           if (ws && ws.isPlaying()) ws.pause();
         });
       });
+      if (referenceAudioRef.current.src) {
+        referenceAudioRef.current.pause();
+      }
     }
 
     return () => cancelAnimationFrame(animationFrame);
@@ -956,6 +1072,9 @@ const EditorPage = () => {
           }
         });
       });
+      if (referenceAudioRef.current.src) {
+        referenceAudioRef.current.currentTime = playheadTime;
+      }
     }
   }, [playheadTime, isPlaying]);
 
@@ -1045,6 +1164,93 @@ const EditorPage = () => {
       document.getElementById('mix-results-section')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   };
+
+  // ==========================================
+  // EXPORT / BOUNCE
+  // ==========================================
+  const handleExportMix = useCallback((format = 'wav') => {
+    if (!processedAudioUrl) {
+      alert('No mix available. Generate an AI Mix first.');
+      return;
+    }
+    try {
+      // processedAudioUrl is a base64 data URI like "data:audio/wav;base64,..."
+      const link = document.createElement('a');
+      link.href = processedAudioUrl;
+      const timestamp = new Date().toISOString().slice(0,10);
+      link.download = `AI_Mix_${timestamp}.wav`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('Export failed: ' + err.message);
+    }
+  }, [processedAudioUrl]);
+
+  // ==========================================
+  // BPM DETECTION
+  // ==========================================
+  const handleDetectBpm = useCallback(async () => {
+    // Find the first clip with a file
+    let file = null;
+    for (const t of tracks) {
+      for (const c of t.clips) {
+        if (c.file) { file = c.file; break; }
+      }
+      if (file) break;
+    }
+    if (!file) {
+      // Try media pool
+      if (mediaPool.length > 0) file = mediaPool[0].file;
+    }
+    if (!file) { alert('No audio files to analyze.'); return; }
+
+    setIsBpmLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('http://localhost:5000/api/detect-bpm', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setDetectedBpm(data.bpm);
+        setDetectedKey(data.key || null);
+        if (data.chords) setDetectedChords(data.chords);
+
+        // Auto-create markers from AI sections if available
+        if (sections && sections.length > 0 && markers.length === 0) {
+          const autoMarkers = sections.map((s, i) => ({
+            id: `marker_${i}`,
+            time: s.startTime,
+            label: s.sectionType,
+            color: s.sectionType === 'Chorus' ? '#a78bfa' : s.sectionType === 'Verse' ? '#4ade80' : '#60a5fa'
+          }));
+          setMarkers(autoMarkers);
+        }
+      } else {
+        alert('BPM detection failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('BPM detection failed: ' + err.message);
+    } finally {
+      setIsBpmLoading(false);
+    }
+  }, [tracks, mediaPool, sections, markers]);
+
+  const handleAddMarker = useCallback(() => {
+    const label = prompt('Marker name:', `Marker ${markers.length + 1}`);
+    if (!label) return;
+    setMarkers(prev => [...prev, {
+      id: `marker_${Date.now()}`,
+      time: playheadTime,
+      label,
+      color: '#60a5fa'
+    }]);
+  }, [playheadTime, markers]);
+
+  const handleRemoveMarker = useCallback((markerId) => {
+    setMarkers(prev => prev.filter(m => m.id !== markerId));
+  }, []);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -1167,7 +1373,7 @@ const EditorPage = () => {
       { label: 'Save As...', action: () => alert('Save As: Not implemented') },
       { divider: true },
       { label: 'Import Audio...', action: () => fileInputRef.current?.click(), shortcut: 'Ctrl+I' },
-      { label: 'Export Mix...', action: () => alert('Export Mix: Not implemented'), shortcut: 'Ctrl+E' },
+      { label: 'Export Mix...', action: () => handleExportMix('wav'), shortcut: 'Ctrl+E' },
     ],
     'Edit': [
       { label: 'Undo', action: handleUndo, shortcut: 'Ctrl+Z' },
@@ -1283,6 +1489,16 @@ const EditorPage = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleStemSplit(media.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-cyan-400 transition-all hover:bg-black/20 rounded-[2px]"
+                        title="Split into Stems (AI)"
+                      >
+                        <Scissors className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           removeMediaFromPool(media.id);
                         }}
                         className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400 transition-all hover:bg-black/20 rounded-[2px]"
@@ -1336,8 +1552,50 @@ const EditorPage = () => {
               </button>
             </div>
 
-            {/* Center: Transport */}
-            <div className="flex items-center bg-[#111] border border-black rounded-[4px] p-0.5 shadow-inner">
+            {/* Center: Transport & Ref Track */}
+            <div className="flex items-center gap-4">
+              
+              {/* Reference Track A/B */}
+              <div className="flex items-center gap-1">
+                <input
+                  type="file" accept="audio/*" className="hidden" id="ref-track-upload"
+                  onChange={(e) => { if(e.target.files[0]) { setReferenceAudioFile(e.target.files[0]); setIsReferenceActive(true); } }}
+                />
+                {!referenceAudioFile ? (
+                  <button
+                    onClick={() => document.getElementById('ref-track-upload').click()}
+                    className="px-2 py-1 bg-black/30 border border-[#333] text-[9px] font-bold text-gray-400 rounded-[2px] hover:text-white"
+                    title="Load Reference Track for A/B Compare"
+                  >
+                    REF LOAD
+                  </button>
+                ) : (
+                  <div className="flex bg-black/50 border border-[#333] rounded-[2px] overflow-hidden">
+                    <button
+                      onClick={() => setIsReferenceActive(false)}
+                      className={`px-3 py-1 text-[10px] font-bold transition-colors ${!isReferenceActive ? 'bg-cyan-600 text-white shadow-inner' : 'text-gray-500 hover:bg-white/10'}`}
+                    >
+                      A (MIX)
+                    </button>
+                    <button
+                      onClick={() => setIsReferenceActive(true)}
+                      className={`px-3 py-1 text-[10px] font-bold transition-colors ${isReferenceActive ? 'bg-orange-600 text-white shadow-inner' : 'text-gray-500 hover:bg-white/10'}`}
+                    >
+                      B (REF)
+                    </button>
+                    <button
+                      onClick={() => { setReferenceAudioFile(null); setIsReferenceActive(false); referenceAudioRef.current.src = ""; }}
+                      className="px-2 py-1 text-gray-500 hover:text-red-400 hover:bg-white/10 transition-colors"
+                      title="Clear Reference Track"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Main Transport */}
+              <div className="flex items-center bg-[#111] border border-black rounded-[4px] p-0.5 shadow-inner">
               <button
                 onClick={() => handleSeek(0)}
                 className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
@@ -1384,9 +1642,20 @@ const EditorPage = () => {
                 </span>
               </div>
             </div>
+            </div>
 
             {/* Right: Zoom + Mix */}
             <div className="flex items-center gap-2">
+
+              {/* Spectrogram Toggle */}
+              <button
+                onClick={() => setShowSpectrogram(!showSpectrogram)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-[3px] text-[10px] font-bold transition-all border ${showSpectrogram ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-black/30 border-[#2a2a2a] text-gray-400 hover:text-white'}`}
+                title="Toggle Spectrogram View"
+              >
+                <Layers className="w-3 h-3" />
+                {showSpectrogram ? 'SPEC: ON' : 'SPEC: OFF'}
+              </button>
 
               {/* Vertical Track Height Slider */}
               <div className="flex items-center gap-1.5 bg-black/30 rounded px-2 py-1 border border-[#2a2a2a]">
@@ -1397,6 +1666,35 @@ const EditorPage = () => {
                   title="Track Height"
                 />
               </div>
+
+              {/* BPM Display */}
+              <div className="flex items-center gap-1 bg-black/30 rounded px-2 py-1 border border-[#2a2a2a]">
+                <button
+                  onClick={handleDetectBpm}
+                  disabled={isBpmLoading}
+                  className="text-[10px] font-bold text-gray-400 hover:text-cyan-400 transition-colors disabled:opacity-50"
+                  title="Auto-detect BPM"
+                >
+                  {isBpmLoading ? '...' : '♩'}
+                </button>
+                <span className="text-[10px] font-mono text-cyan-400 min-w-[40px] text-center">
+                  {detectedBpm ? `${detectedBpm}` : '---'} BPM
+                </span>
+                {detectedKey && (
+                  <span className="text-[9px] font-bold text-violet-400 px-1 border-l border-white/10">
+                    {detectedKey}
+                  </span>
+                )}
+              </div>
+
+              {/* Add Marker */}
+              <button
+                onClick={handleAddMarker}
+                className="w-7 h-7 rounded-[3px] flex items-center justify-center text-[#999] hover:text-yellow-400 hover:bg-black/30 transition-colors border border-transparent hover:border-yellow-800/50"
+                title="Add Marker at Playhead (M)"
+              >
+                <span className="text-[11px] font-bold">⚑</span>
+              </button>
 
               <div className="flex items-center gap-1 bg-black/30 rounded px-1 border border-[#2a2a2a]">
                 <button onClick={() => setZoomLevel(prev => Math.max(10, prev - 10))} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white">
@@ -1447,12 +1745,47 @@ const EditorPage = () => {
                     <div className="flex sticky top-0 z-40 bg-[#1a1a1a]">
                       {/* Spacer above track headers (Sticky Left) */}
                       <div className="w-60 flex-shrink-0 border-r border-black border-b border-b-[#333] sticky left-0 z-50 bg-[#1e1e1e]" />
-                      <div className="flex-1">
+                      <div className="flex-1 relative">
                         <TimelineRuler
                           zoomLevel={zoomLevel} playheadTime={playheadTime} onClickRuler={handleSeek} timelineWidth={timelineWidth}
                           isLooping={isLooping} loopLeft={loopLeft} loopRight={loopRight}
                           onUpdateLoop={(l, r) => { setLoopLeft(l); setLoopRight(r); }}
                         />
+                        {/* Marker Track overlay */}
+                        {markers.length > 0 && (
+                          <div className="absolute left-0 right-0 bottom-0 h-4 pointer-events-none z-10">
+                            {markers.map(marker => (
+                              <div
+                                key={marker.id}
+                                className="absolute bottom-0 flex items-end pointer-events-auto cursor-pointer group"
+                                style={{ left: marker.time * zoomLevel }}
+                                onClick={() => handleSeek(marker.time)}
+                                onContextMenu={(e) => { e.preventDefault(); handleRemoveMarker(marker.id); }}
+                                title={`${marker.label} — Right-click to remove`}
+                              >
+                                <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[8px] border-transparent" style={{ borderBottomColor: marker.color }} />
+                                <span className="text-[8px] font-bold ml-0.5 whitespace-nowrap opacity-70 group-hover:opacity-100" style={{ color: marker.color }}>
+                                  {marker.label}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Chord Track overlay */}
+                        {detectedChords.length > 0 && (
+                          <div className="absolute left-0 right-0 bottom-4 h-3 pointer-events-none z-10 opacity-60">
+                            {detectedChords.map((chordObj, idx) => (
+                              <div
+                                key={`chord_${idx}`}
+                                className="absolute bottom-0 text-[8px] font-bold text-violet-400 bg-black/50 px-1 rounded-sm border border-violet-900/50"
+                                style={{ left: chordObj.time * zoomLevel }}
+                              >
+                                {chordObj.chord}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1467,7 +1800,8 @@ const EditorPage = () => {
                         onMuteToggle={handleMuteToggle} onSoloToggle={handleSoloToggle} onVolumeChange={handleVolumeChange}
                         onSelectTrack={setSelectedTrackId} isSelectedTrack={selectedTrackId === track.id}
                         isRecording={isRecording} recordStartTime={recordStartTime} targetRecordTrackId={targetRecordTrackId} activeStreamRef={activeStreamRef.current}
-                        onUpdateClipGain={handleUpdateClipGain}
+                        onUpdateClipGain={handleUpdateClipGain} showSpectrogram={showSpectrogram}
+                        onToggleFreeze={(trackId) => setTracks(prev => prev.map(t => t.id === trackId ? { ...t, isFrozen: !t.isFrozen } : t))}
                       />
                     ))}
 
@@ -1679,6 +2013,22 @@ const EditorPage = () => {
                       <div className="p-4 overflow-auto h-full">
                         {processedAudioUrl ? (
                           <div className="space-y-4">
+                            {/* Export Buttons */}
+                            <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-emerald-900/30 to-cyan-900/30 rounded-xl border border-emerald-500/20">
+                              <Download className="w-5 h-5 text-emerald-400" />
+                              <div className="flex-1">
+                                <h4 className="text-sm font-bold text-white">Your AI Mix is Ready!</h4>
+                                <p className="text-[10px] text-gray-400">Download your mixed audio file</p>
+                              </div>
+                              <button
+                                onClick={() => handleExportMix('wav')}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all shadow-[0_0_10px_rgba(16,185,129,0.3)] flex items-center gap-2"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                Export WAV
+                              </button>
+                            </div>
+
                             {sections && sections.length > 0 && (
                               <MixExplainer
                                 sections={sections}

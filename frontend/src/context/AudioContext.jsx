@@ -788,12 +788,67 @@ export const AudioProvider = ({ children }) => {
     }
   };
 
+  // ==========================================
+  // NEW: AI Stem Splitter
+  // ==========================================
+  const handleStemSplit = async (mediaId) => {
+    const media = mediaPool.find(m => m.id === mediaId);
+    if (!media) return null;
+
+    setIsLoading(true);
+    setError(null);
+    setLoadingStage('Splitting stems with AI...');
+
+    const formData = new FormData();
+    formData.append('file', media.file, media.name);
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/split-stems', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          if (percent < 100) {
+            setLoadingStage(`Uploading for stem split... ${percent}%`);
+          } else {
+            setLoadingStage('AI is separating stems... This may take a moment.');
+          }
+        },
+      });
+
+      const { data } = response;
+
+      if (data.success && data.stems) {
+        // Convert each stem base64 to File and add to media pool
+        for (const [stemName, base64Url] of Object.entries(data.stems)) {
+          const res = await fetch(base64Url);
+          const blob = await res.blob();
+          const baseName = media.name.replace(/\.[^/.]+$/, "");
+          const newFileName = `${baseName} (${stemName}).wav`;
+          const newFile = new File([blob], newFileName, { type: 'audio/wav' });
+          addMediaToPool(newFile);
+        }
+      }
+
+      return data;
+    } catch (err) {
+      console.error(err);
+      setError('Stem split failed: ' + (err.response?.data?.error || err.message));
+      return null;
+    } finally {
+      setIsLoading(false);
+      setLoadingStage('');
+    }
+  };
+
   value.handlePitchCorrection = handlePitchCorrection;
   value.handleAlignment = handleAlignment;
   value.channelStripPresets = channelStripPresets;
   value.applyChannelStripPreset = applyChannelStripPreset;
   value.saveProjectToSupabase = saveProjectToSupabase;
   value.loadProjectFromSupabase = loadProjectFromSupabase;
+  value.handleStemSplit = handleStemSplit;
 
   if (!isProjectLoaded) {
     return (

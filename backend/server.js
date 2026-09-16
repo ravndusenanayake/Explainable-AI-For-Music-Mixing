@@ -431,10 +431,107 @@ app.post('/api/align', upload.array('files'), asyncHandler(async (req, res) => {
     }
 }));
 
+// ============================================================
+// NEW: BPM / Tempo Detection Endpoint
+// ============================================================
+app.post('/api/detect-bpm', upload.single('file'), asyncHandler(async (req, res) => {
+    console.log('\n--- New BPM Detection Request ---');
+    
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+    }
+
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+    
+    const inputPath = path.join(tempDir, `temp_bpm_${Date.now()}.wav`);
+    fs.writeFileSync(inputPath, req.file.buffer);
+
+    try {
+        const pythonProcess = spawn('python', [path.join(__dirname, 'bpmDetect.py'), inputPath]);
+        let output = '';
+        let errorOutput = '';
+
+        pythonProcess.stdout.on('data', (d) => { output += d.toString(); });
+        pythonProcess.stderr.on('data', (d) => { errorOutput += d.toString(); });
+
+        await new Promise((resolve, reject) => {
+            pythonProcess.on('close', (code) => {
+                if (code !== 0) reject(new Error(`BPM detection failed: ${errorOutput}`));
+                else resolve();
+            });
+            pythonProcess.on('error', reject);
+        });
+
+        const result = JSON.parse(output.trim());
+        
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+
+        return res.status(200).json(result);
+    } catch (err) {
+        console.error('[BPM] Error:', err.message);
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        return res.status(500).json({ error: 'BPM detection failed: ' + err.message });
+    }
+}));
+
+// ============================================================
+// NEW: AI Stem Splitter Endpoint
+// ============================================================
+const { splitStems } = require('./stemSplitter');
+
+app.post('/api/split-stems', upload.single('file'), asyncHandler(async (req, res) => {
+    console.log('\n--- New Stem Split Request ---');
+    
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+    }
+
+    console.log(`[StemSplit] File: ${req.file.originalname}, Size: ${(req.file.size / 1024 / 1024).toFixed(2)}MB`);
+
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+    
+    const inputPath = path.join(tempDir, `temp_stem_in_${Date.now()}.wav`);
+    fs.writeFileSync(inputPath, req.file.buffer);
+
+    try {
+        const outputDir = path.join(tempDir, `stems_${Date.now()}`);
+        const result = await splitStems(inputPath, outputDir);
+
+        // Convert each stem to base64
+        const stemsBase64 = {};
+        for (const [name, filePath] of Object.entries(result.stems)) {
+            if (fs.existsSync(filePath)) {
+                const buffer = fs.readFileSync(filePath);
+                stemsBase64[name] = `data:audio/wav;base64,${buffer.toString('base64')}`;
+                fs.unlinkSync(filePath); // cleanup
+            }
+        }
+
+        // Cleanup
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        // Remove output directory
+        if (fs.existsSync(outputDir)) fs.rmSync(outputDir, { recursive: true, force: true });
+
+        return res.status(200).json({
+            success: true,
+            stems: stemsBase64,
+            method: result.method,
+            explanations: result.explanations
+        });
+    } catch (err) {
+        console.error('[StemSplit] Error:', err.message);
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        return res.status(500).json({ error: 'Stem separation failed: ' + err.message });
+    }
+}));
+
 app.listen(port, () => {
   console.log(`=========================================`);
   console.log(`🚀 Node.js Backend listening on port ${port}`);
   console.log(`🎵 Multi-track mix endpoint: POST /api/mix`);
   console.log(`📁 Legacy upload endpoint:   POST /api/upload`);
+  console.log(`🎼 Stem splitter endpoint:   POST /api/split-stems`);
   console.log(`=========================================`);
 });

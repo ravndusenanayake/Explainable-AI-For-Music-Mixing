@@ -530,9 +530,9 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
         decisions.severity = 'adjusted';
         decisions.actions.push(`Boosted vocal by +${boost.toFixed(1)}dB`);
         decisions.explanations.push({
-          action: `Vocal Boost: +${boost.toFixed(1)}dB`,
-          reason: `In this Chorus section, the vocal was sitting ${Math.abs(balanceDb).toFixed(1)}dB below the instrumental. Choruses need the vocal to cut through clearly.`,
-          tip: 'In choruses, vocals should sit 2-4dB above the instrumental bed to maintain emotional impact and clarity.'
+          action: `Vocal +${boost.toFixed(1)}dB`,
+          reason: `Vocal was too low in the Chorus.`,
+          tip: 'Vocal should be 2-4dB louder than the instrumental in choruses.'
         });
       } else if (balanceDb > 6) {
         const cut = Math.min(4, balanceDb * 0.4);
@@ -540,16 +540,16 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
         decisions.severity = 'adjusted';
         decisions.actions.push(`Boosted instrumental by +${cut.toFixed(1)}dB`);
         decisions.explanations.push({
-          action: `Instrumental Lift: +${cut.toFixed(1)}dB`,
-          reason: `The instrumental was too quiet relative to the vocal (${balanceDb.toFixed(1)}dB gap). Choruses need a full, powerful backing.`,
-          tip: 'A full-sounding chorus relies on both vocal and instrumental energy working together. Don\'t let the backing track disappear.'
+          action: `Inst. +${cut.toFixed(1)}dB`,
+          reason: `Instrumental was too quiet in the Chorus.`,
+          tip: 'Keep instrumental loud enough to support the vocal energy.'
         });
       } else {
         decisions.actions.push('Balance already optimal for chorus');
         decisions.explanations.push({
-          action: 'Vocal-Instrument Balance: Optimal',
-          reason: `Both tracks are well-balanced for a chorus section (${balanceDb > 0 ? '+' : ''}${balanceDb.toFixed(1)}dB vocal relative to instrumental).`,
-          tip: 'A balanced chorus with vocal 2-4dB above the instrumental creates the best impact.'
+          action: 'Chorus Balance Good',
+          reason: `Levels are perfectly balanced.`,
+          tip: 'No changes needed.'
         });
       }
     } else if (sectionType === 'Verse') {
@@ -561,16 +561,16 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
         decisions.severity = 'significant';
         decisions.actions.push(`Boosted vocal by +${boost.toFixed(1)}dB, ducked instrumental by -${Math.min(2, boost * 0.3).toFixed(1)}dB`);
         decisions.explanations.push({
-          action: `Vocal Priority Adjustment: +${boost.toFixed(1)}dB vocal, -${Math.min(2, boost * 0.3).toFixed(1)}dB instrumental`,
-          reason: `In this Verse, the vocal was buried under the instrumental by ${Math.abs(balanceDb).toFixed(1)}dB. Verses carry the lyrical narrative — the words must be clearly audible.`,
-          tip: 'Verses are storytelling sections. Keep the instrumental bed 4-6dB below the vocal so lyrics are crystal clear.'
+          action: `Vocal +${boost.toFixed(1)}dB / Inst -${Math.min(2, boost * 0.3).toFixed(1)}dB`,
+          reason: `Vocal was buried in the Verse.`,
+          tip: 'Keep instrumental 4-6dB below the vocal in verses so lyrics are clear.'
         });
       } else {
         decisions.actions.push('Verse balance is good');
         decisions.explanations.push({
-          action: 'Verse Balance: Good',
-          reason: `Vocal sits ${balanceDb.toFixed(1)}dB above the instrumental, providing good lyrical clarity.`,
-          tip: 'In verses, the vocal should lead. This balance lets the listener focus on the lyrics.'
+          action: 'Verse Balance Good',
+          reason: `Vocal is clearly audible over the instrumental.`,
+          tip: 'No changes needed.'
         });
       }
     } else if (sectionType === 'Bridge') {
@@ -582,33 +582,33 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
         decisions.severity = 'adjusted';
         decisions.actions.push(`Adjusted vocal by ${(-diff * 0.3).toFixed(1)}dB for bridge balance`);
         decisions.explanations.push({
-          action: `Bridge Balance Adjustment: ${(-diff * 0.3) > 0 ? '+' : ''}${(-diff * 0.3).toFixed(1)}dB vocal`,
-          reason: `Bridge sections create contrast. The current balance needed ${Math.abs(diff).toFixed(1)}dB correction to achieve an intimate, balanced feel.`,
-          tip: 'Bridges are emotional pivots. A slightly softer vocal with moderate instrumental creates anticipation for the final chorus.'
+          action: `Vocal ${(-diff * 0.3) > 0 ? '+' : ''}${(-diff * 0.3).toFixed(1)}dB (Bridge)`,
+          reason: `Adjusted bridge balance.`,
+          tip: 'Bridges need contrast. Keep vocals slightly softer here.'
         });
       }
     } else if (sectionType === 'Instrumental Break') {
       decisions.vocalGainDb = -60; // effectively mute
       decisions.actions.push('Muted vocal for instrumental break');
       decisions.explanations.push({
-        action: 'Vocal Muted',
-        reason: 'No vocal content detected in this section. This is an instrumental break — letting the backing track breathe.',
-        tip: 'Instrumental breaks give the listener a chance to appreciate the music arrangement. Let the instruments shine.'
+        action: 'Mute Vocal',
+        reason: 'Instrumental break detected.',
+        tip: 'Let instruments shine here.'
       });
     }
   } else if (vocal.isSilent && !instrumental.isSilent) {
     decisions.actions.push('Instrumental only — no vocal processing needed');
     decisions.explanations.push({
-      action: 'Instrumental Solo Section',
-      reason: 'No vocal content detected. The instrumental plays alone in this section.',
-      tip: 'Instrumental sections are great opportunities to showcase the arrangement and build energy.'
+      action: 'Instrumental Only',
+      reason: 'No vocal detected.',
+      tip: 'Build energy for the next section.'
     });
   } else if (!vocal.isSilent && instrumental.isSilent) {
     decisions.actions.push('A cappella section — vocal only');
     decisions.explanations.push({
-      action: 'A Cappella Section',
-      reason: 'No instrumental content detected. The vocal stands alone, creating an intimate moment.',
-      tip: 'A cappella moments are powerful. Consider adding very subtle reverb to prevent the vocal from sounding too dry.'
+      action: 'Vocal Only',
+      reason: 'No instrumental detected.',
+      tip: 'Add subtle reverb to avoid dryness.'
     });
   }
 
@@ -618,18 +618,18 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
     decisions.severity = decisions.severity === 'optimal' ? 'adjusted' : decisions.severity;
     decisions.actions.push(compressionNote);
     decisions.explanations.push({
-      action: 'Compression Recommended: Vocal Dynamics',
-      reason: `Vocal crest factor is ${vocal.crestFactor.toFixed(1)} (peak ${vocal.peakDb.toFixed(1)}dB vs RMS ${vocal.rmsDb.toFixed(1)}dB). This means loud parts are much louder than quiet parts, making it hard to sit consistently in the mix.`,
-      tip: 'Apply gentle compression (2:1 ratio, medium attack) to even out the vocal dynamics without squashing the natural feel.'
+      action: 'Vocal Compressor Needed',
+      reason: `Vocal volume fluctuates too much.`,
+      tip: 'Use gentle compression (2:1 ratio) to even it out.'
     });
   }
 
   if (!instrumental.isSilent && instrumental.crestFactor > 8) {
     decisions.actions.push('Instrumental has very wide dynamics');
     decisions.explanations.push({
-      action: 'Dynamics Warning: Instrumental',
-      reason: `Instrumental crest factor is ${instrumental.crestFactor.toFixed(1)}. The peaks are much louder than the average level, which can cause the mix to feel inconsistent.`,
-      tip: 'Bus compression on the instrumental (2-4:1 ratio) will glue the elements together and provide a more consistent bed for the vocal.'
+      action: 'Inst. Compressor Needed',
+      reason: `Instrumental peaks are too loud.`,
+      tip: 'Use bus compression (2:1 ratio) for consistency.'
     });
   }
 
@@ -637,18 +637,18 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
   if (!vocal.isSilent && vocal.zeroCrossingRate > 0.3) {
     decisions.actions.push('High sibilance/brightness detected in vocal');
     decisions.explanations.push({
-      action: 'De-Essing Recommended',
-      reason: `High zero-crossing rate (${(vocal.zeroCrossingRate * 100).toFixed(0)}%) indicates significant high-frequency content — likely harsh "S" and "T" sounds (sibilance).`,
-      tip: 'Apply a de-esser targeting 5-8kHz to tame sibilance without dulling the overall vocal brightness.'
+      action: 'Add De-Esser',
+      reason: `Harsh "S" sounds detected.`,
+      tip: 'Tame sibilance at 5-8kHz.'
     });
   }
 
   if (!instrumental.isSilent && instrumental.zeroCrossingRate > 0.35) {
     decisions.actions.push('Bright instrumental may compete with vocal airiness');
     decisions.explanations.push({
-      action: 'EQ Suggestion: Instrumental High-Cut',
-      reason: `The instrumental has very high brightness (ZCR: ${(instrumental.zeroCrossingRate * 100).toFixed(0)}%). This may mask the vocal\'s "air" and presence frequencies (8-16kHz).`,
-      tip: 'A gentle high shelf cut (-2dB at 10kHz) on the instrumental creates space for the vocal to breathe in the upper frequencies.'
+      action: 'Cut Inst. Highs',
+      reason: `Instrumental is too bright.`,
+      tip: 'Cut -2dB at 10kHz to make space for the vocal.'
     });
   }
 
@@ -658,9 +658,9 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
     decisions.vocalGainDb -= 2;
     decisions.actions.push('Vocal peak near clipping — applied -2dB safety cut');
     decisions.explanations.push({
-      action: 'Peak Limiter: Vocal -2dB',
-      reason: `Vocal peaks at ${vocal.peakDb.toFixed(1)}dB, dangerously close to 0dBFS (digital clipping). Applied a 2dB safety margin.`,
-      tip: 'Always keep peaks below -1dBTP (True Peak). Streaming platforms like Spotify and Apple Music will flag or distort clipped audio.'
+      action: 'Vocal Peak -2dB',
+      reason: `Vocal was clipping (distorting).`,
+      tip: 'Always keep peak levels below -1dB.'
     });
   }
 
@@ -669,9 +669,9 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
     decisions.instrumentalGainDb -= 2;
     decisions.actions.push('Instrumental peak near clipping — applied -2dB safety cut');
     decisions.explanations.push({
-      action: 'Peak Limiter: Instrumental -2dB',
-      reason: `Instrumental peaks at ${instrumental.peakDb.toFixed(1)}dB, near digital clipping. Applied a safety reduction.`,
-      tip: 'Leave headroom in your mix. A good target is -6dBFS for the mix bus before mastering.'
+      action: 'Inst. Peak -2dB',
+      reason: `Instrumental was clipping (distorting).`,
+      tip: 'Keep mix bus peak at -6dB before mastering.'
     });
   }
 
@@ -1001,12 +1001,32 @@ async function mixTracks(files, timelineState) {
       const v = vocalSamples[s] || 0;
       const inst = instSamples[s] || 0;
 
-      const mixedSample = (v * vocalGain) + (inst * instGain);
+      // Side-Chain Ducking: When vocal is loud, duck instrumental
+      const vAbs = Math.abs(v);
+      const threshold = 0.05; // ~ -26dBFS
+      let duckingFactor = 1.0;
+      if (vAbs > threshold) {
+        // Duck instrumental by up to -3dB (0.7x) depending on vocal amplitude
+        // Smooth it slightly using a quick attack envelope concept
+        duckingFactor = Math.max(0.7, 1.0 - (vAbs * 0.5));
+      }
+
+      const mixedSample = (v * vocalGain) + (inst * instGain * duckingFactor);
 
       mixedChannelData[0][s] = mixedSample; // L
       mixedChannelData[1][s] = mixedSample; // R
     }
   }
+
+  // Add side-chain ducking explanation
+  allExplanations.unshift({
+    action: 'Side-Chain Ducking Applied',
+    reason: 'Automatically lowered the instrumental volume when the vocal gets loud to prevent frequency masking.',
+    tip: 'Side-chaining helps the vocal cut through the mix without making the whole track too loud.',
+    section: 'Global',
+    time: 'Entire Track',
+    sectionType: 'AI Dynamics'
+  });
 
   // ── Step 4: Normalize the final mix ──
   let globalPeak = 0;

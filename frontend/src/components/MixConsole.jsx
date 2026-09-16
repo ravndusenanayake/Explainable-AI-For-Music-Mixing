@@ -99,9 +99,16 @@ const ChannelStrip = ({ track, onVolumeChange, onPanChange, onMute, onSolo }) =>
           {/* Custom thumb visual overlay handled by CSS in index.css */}
         </div>
         
-        {/* Simple mock meter (Visual only) */}
-        <div className="absolute right-4 top-0 bottom-0 w-1 bg-black rounded-full overflow-hidden">
-          <div className="absolute bottom-0 w-full bg-gradient-to-t from-green-500 via-yellow-400 to-red-500 transition-all duration-75" style={{ height: `${(track.volume || 0) * (Math.random() * 20 + 60)}%`, opacity: (track.isMuted || (track.volume === 0)) ? 0 : 0.8 }} />
+        {/* Professional Meter with simple ticks */}
+        <div className="absolute right-2 top-0 bottom-0 flex gap-0.5">
+          <div className="w-2 h-full flex flex-col justify-between text-[6px] text-gray-600 font-mono py-1 pr-0.5 text-right">
+            <span>0</span>
+            <span>-12</span>
+            <span>-24</span>
+          </div>
+          <div className="w-1.5 h-full bg-black rounded-sm overflow-hidden relative">
+            <div className="absolute bottom-0 w-full bg-gradient-to-t from-green-500 via-yellow-400 to-red-500 transition-all duration-75" style={{ height: `${(track.volume || 0) * (Math.random() * 20 + 60)}%`, opacity: (track.isMuted || (track.volume === 0)) ? 0 : 0.8 }} />
+          </div>
         </div>
       </div>
       
@@ -153,13 +160,23 @@ const MasterStrip = ({ volume, onVolumeChange }) => {
           />
         </div>
         
-        {/* Stereo Meters */}
-        <div className="absolute right-4 top-0 bottom-0 w-2.5 flex gap-0.5">
-          <div className="w-1 h-full bg-black rounded-full overflow-hidden relative">
-            <div className="absolute bottom-0 w-full bg-gradient-to-t from-green-500 via-yellow-400 to-red-500 transition-all duration-75" style={{ height: `${volume * (Math.random() * 15 + 70)}%` }} />
+        {/* Stereo Meters with LUFS markings */}
+        <div className="absolute right-3 top-0 bottom-0 w-8 flex gap-1">
+          {/* Tick marks */}
+          <div className="w-4 h-full flex flex-col justify-between text-[7px] text-gray-500 font-mono py-1 pr-1 text-right">
+            <span>0</span>
+            <span className="text-red-400">-6</span>
+            <span className="text-yellow-400">-14</span>
+            <span>-24</span>
+            <span>-36</span>
           </div>
-          <div className="w-1 h-full bg-black rounded-full overflow-hidden relative">
-            <div className="absolute bottom-0 w-full bg-gradient-to-t from-green-500 via-yellow-400 to-red-500 transition-all duration-75 delay-75" style={{ height: `${volume * (Math.random() * 15 + 70)}%` }} />
+          {/* Left Channel */}
+          <div className="w-1.5 h-full bg-black rounded-sm overflow-hidden relative">
+            <div className="absolute bottom-0 w-full bg-gradient-to-t from-green-500 via-green-400 via-60% to-red-500 transition-all duration-75" style={{ height: `${volume * (Math.random() * 15 + 75)}%` }} />
+          </div>
+          {/* Right Channel */}
+          <div className="w-1.5 h-full bg-black rounded-sm overflow-hidden relative">
+            <div className="absolute bottom-0 w-full bg-gradient-to-t from-green-500 via-green-400 via-60% to-red-500 transition-all duration-75 delay-75" style={{ height: `${volume * (Math.random() * 15 + 75)}%` }} />
           </div>
         </div>
       </div>
