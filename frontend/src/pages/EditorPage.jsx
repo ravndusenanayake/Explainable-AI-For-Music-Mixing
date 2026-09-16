@@ -1078,6 +1078,20 @@ const EditorPage = () => {
     }
   }, [playheadTime, isPlaying]);
 
+  // Auto-scroll timeline to follow playhead (Cubase/FL Studio page scrolling style)
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const playheadPixel = 240 + playheadTime * zoomLevel;
+      const visibleRightEdge = container.scrollLeft + container.clientWidth;
+      const visibleLeftEdge = container.scrollLeft + 240;
+      
+      // If playhead leaves the visible track area, page scroll so it appears on the left
+      if (playheadPixel > visibleRightEdge || playheadPixel < visibleLeftEdge) {
+        container.scrollLeft = Math.max(0, playheadPixel - 240);
+      }
+    }
+  }, [playheadTime, zoomLevel]);
 
   // Push undo snapshot
   const pushUndo = useCallback(() => {

@@ -23,8 +23,8 @@ body {
 
 /* Custom scrollbar for modern feel (CapCut style) */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
 }
 
 ::-webkit-scrollbar-track {
@@ -32,13 +32,13 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333333;
-  border-radius: 5px;
-  border: 2px solid #1a1a1a;
+  background: #555555;
+  border-radius: 7px;
+  border: 3px solid #1a1a1a;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444444;
+  background: #777777;
 }
 
 ::-webkit-scrollbar-corner {
