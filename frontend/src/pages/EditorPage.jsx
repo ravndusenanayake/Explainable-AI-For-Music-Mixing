@@ -1930,14 +1930,19 @@ const EditorPage = () => {
                       />
                     ))}
 
-                    {/* Add Track Button */}
-                    <div
-                      className="ml-[240px] m-2 p-2 border border-dashed border-[#333] hover:border-[#666] bg-[#1a1a1a] flex items-center justify-center cursor-pointer transition-colors rounded-sm group"
-                      onClick={handleAddTrack}
-                    >
-                      <span className="text-[#666] group-hover:text-cyan-400 text-xs font-bold flex items-center gap-2">
-                        <Plus className="w-4 h-4" /> ADD TRACK
-                      </span>
+                    {/* Add Track Button Row */}
+                    <div className="flex border-b border-black/50" style={{ height: 40 }}>
+                      {/* Header Area */}
+                      <div
+                        className="w-60 bg-[#1a1a1a] flex-shrink-0 border-r border-[#222] flex items-center justify-center cursor-pointer hover:bg-[#222] transition-colors sticky left-0 z-30 group"
+                        onClick={handleAddTrack}
+                      >
+                        <span className="text-[#666] group-hover:text-cyan-400 text-xs font-bold flex items-center gap-2">
+                          <Plus className="w-4 h-4" /> ADD TRACK
+                        </span>
+                      </div>
+                      {/* Empty Timeline Area */}
+                      <div className="flex-1 bg-[#141414]"></div>
                     </div>
 
                     {/* Global Playhead Line */}
