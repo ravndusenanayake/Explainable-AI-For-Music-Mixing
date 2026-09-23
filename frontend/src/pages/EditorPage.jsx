@@ -23,6 +23,7 @@ import AudioAligner from '../components/AudioAligner';
 import ChannelStrip from '../components/ChannelStrip';
 import ProjectsModal from '../components/ProjectsModal';
 import { Cloud } from 'lucide-react';
+import audioEngine from '../utils/realtimeEffects';
 
 // ==========================================
 // HELPERS
@@ -90,6 +91,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       height: trackHeight - 20, // Leave room for clip header
       normalize: true,
       interact: false,
+      cursorWidth: 0,
       barWidth: 2,
       barGap: 1,
       barRadius: 0,
@@ -113,6 +115,8 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
       setDuration(d);
       if (clipDurations) clipDurations.current[clip.id] = d;
       if (clipWsRefs) clipWsRefs.current[clip.id] = ws;
+      ws.setVolume(0); // Mute WaveSurfer — Web Audio engine handles all playback audio
+      audioEngine.decodeFile(clip.id, clip.file).catch(console.error);
     });
     return () => {
       if (clipWsRefs) delete clipWsRefs.current[clip.id];
@@ -340,6 +344,18 @@ const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream
 // ==========================================
 // COMPONENT: Track
 // ==========================================
+
+// Utility functions for Decibel conversion
+const gainToDb = (gain) => {
+  if (gain <= 0.001) return -60;
+  return 20 * Math.log10(gain);
+};
+
+const dbToGain = (db) => {
+  if (db <= -60) return 0;
+  return Math.pow(10, db / 20);
+};
+
 const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack, activeTool, onSplitClip, onToggleClipMute, onUpdateClipGain, onToggleRecordEnable, onToggleMonitor, onToggleRead, onToggleWrite, isRecording, recordStartTime, targetRecordTrackId, activeStreamRef, showSpectrogram, onToggleFreeze }) => {
   const trackRef = useRef(null);
   const [isLocked, setIsLocked] = useState(false);
@@ -379,9 +395,14 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
 
         {/* Top row: Name & Lock */}
         <div className="flex items-center justify-between mb-1 bg-[#1a1a1a] px-1.5 py-1 rounded-[2px] border border-[#111] shadow-inner">
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {trackIcons[track.color]}
             <span className="text-[10px] font-bold text-gray-200 truncate">{track.name}</span>
+            {track.type && (
+              <span className={`text-[8px] font-bold px-1 rounded-sm uppercase tracking-wider ml-auto shrink-0 ${track.type === 'vocal' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'}`}>
+                {track.type === 'vocal' ? '🎤 Vocal' : '🎸 Beat'}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-0.5">
             <button
@@ -420,12 +441,15 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
 
           <div className={`flex-1 flex items-center ml-1 p-0.5 rounded-[2px] border shadow-inner ${track.isFrozen ? 'bg-[#111] border-[#0a0a0a]' : 'bg-[#1a1a1a] border-[#111]'}`}>
             <input
-              type="range" min="0" max="1" step="0.01"
-              value={track.volume !== undefined ? track.volume : 1}
-              onChange={(e) => onVolumeChange(track.id, parseFloat(e.target.value))}
+              type="range" min="-60" max="6" step="0.1"
+              value={gainToDb(track.volume !== undefined ? track.volume : 1)}
+              onChange={(e) => onVolumeChange(track.id, dbToGain(parseFloat(e.target.value)))}
               disabled={track.isFrozen}
               className={`w-full h-2 rounded-[1px] appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-[1px] ${track.isFrozen ? 'bg-[#222] [&::-webkit-slider-thumb]:bg-[#444]' : 'bg-black [&::-webkit-slider-thumb]:bg-[#888] cursor-pointer hover:[&::-webkit-slider-thumb]:bg-cyan-400'}`}
             />
+            <div className="text-[8px] text-gray-500 font-mono w-7 text-right shrink-0 pr-0.5 select-none" title="Volume (dB)">
+              {gainToDb(track.volume !== undefined ? track.volume : 1).toFixed(1)}
+            </div>
           </div>
         </div>
       </div>
@@ -672,21 +696,13 @@ const EditorPage = () => {
     }
   }, [referenceAudioFile]);
 
-  // A/B Muting Logic
+  // A/B Muting Logic — mute/unmute Web Audio engine vs reference track
   useEffect(() => {
-    // Mute/Unmute wavesurfers based on A/B state
-    Object.keys(clipWsRefs.current).forEach(id => {
-      const ws = clipWsRefs.current[id];
-      if (ws) {
-        ws.setMuted(isReferenceActive);
-      }
-    });
-    
-    // Mute/Unmute reference track
+    audioEngine.setMasterMute(isReferenceActive);
     if (referenceAudioRef.current) {
       referenceAudioRef.current.muted = !isReferenceActive;
     }
-  }, [isReferenceActive, clipWsRefs]);
+  }, [isReferenceActive]);
 
   // Marker Track State
   const [markers, setMarkers] = useState([]);
@@ -829,7 +845,7 @@ const EditorPage = () => {
           audio: {
             echoCancellation: false,
             autoGainControl: false,
-            noiseSuppression: false,
+            noiseSuppression: true, // Enable noise suppression for cleaner vocals
             latency: 0, // request lowest possible latency
           }
         });
@@ -861,9 +877,28 @@ const EditorPage = () => {
         // Create source from mic stream (dry/clean, no effects)
         const source = recCtx.createMediaStreamSource(stream);
 
-        // Add a GainNode to boost microphone input volume during recording
+        // 1. High-Pass Filter (Low Cut): Removes low-end rumble and plosives (pops) below 100Hz
+        const highPassFilter = recCtx.createBiquadFilter();
+        highPassFilter.type = 'highpass';
+        highPassFilter.frequency.value = 100;
+        
+        // 2. High-Shelf Filter (Air/Presence): Boosts high frequencies above 5kHz for clarity
+        const highShelfFilter = recCtx.createBiquadFilter();
+        highShelfFilter.type = 'highshelf';
+        highShelfFilter.frequency.value = 5000;
+        highShelfFilter.gain.value = 3.0; // +3dB boost for vocal air
+
+        // 3. Gain Node: Boost the raw microphone signal safely
         const micGainNode = recCtx.createGain();
-        micGainNode.gain.value = 2.5; // Boost volume by 2.5x
+        micGainNode.gain.value = 2.0; // +6dB boost (reduced slightly since we added high-shelf gain)
+
+        // 4. Limiter: Catch peaks AFTER the boost/EQ to prevent digital clipping
+        const limiter = recCtx.createDynamicsCompressor();
+        limiter.threshold.value = -2.0; // Limit at -2dB
+        limiter.knee.value = 0;         // Hard knee
+        limiter.ratio.value = 20;       // Brickwall ratio
+        limiter.attack.value = 0.001;   // Super fast attack (1ms) to catch transients
+        limiter.release.value = 0.1;
 
         // ScriptProcessorNode for PCM sample capture
         // Buffer size 4096 = ~93ms at 44100Hz — good balance of latency vs performance
@@ -878,9 +913,12 @@ const EditorPage = () => {
           pcmBuffersRef.current.push(new Float32Array(inputData));
         };
 
-        // Connect: Mic → GainNode → ScriptProcessor → destination (needed to keep the processor alive)
-        source.connect(micGainNode);
-        micGainNode.connect(processor);
+        // Connect: Mic → HighPass → HighShelf → GainNode → Limiter → ScriptProcessor → destination
+        source.connect(highPassFilter);
+        highPassFilter.connect(highShelfFilter);
+        highShelfFilter.connect(micGainNode);
+        micGainNode.connect(limiter);
+        limiter.connect(processor);
         processor.connect(recCtx.destination);
 
         // Save current playhead and target track
@@ -928,19 +966,7 @@ const EditorPage = () => {
   const seekRequestRef = useRef(null);
   const handleSeek = (time) => {
     setPlayheadTime(time);
-    if (referenceAudioRef.current.src) {
-      referenceAudioRef.current.currentTime = time;
-    }
-    Object.values(clipWsRefs.current).forEach(ws => {
-      if (ws) {
-        try {
-          const duration = ws.getDuration() || 0.1;
-          ws.seekTo(Math.min(1, Math.max(0, time / duration)));
-        } catch (err) {
-          console.log('seek err', err);
-        }
-      }
-    });
+    seekRequestRef.current = time;
   };
 
   // Track Header Actions
@@ -954,119 +980,153 @@ const EditorPage = () => {
     setTracks(prev => prev.map(t => t.id === trackId ? { ...t, volume: newVol } : t));
   };
 
-  // Playback Engine (Solo, Mute, Volume, Looping)
+  // ==========================================
+  // PLAYBACK ENGINE (Web Audio API)
+  // ==========================================
+  // Uses AudioPlaybackEngine for audio (perfect sync + real-time effects).
+  // WaveSurfer is used ONLY for visual waveform progress display.
   useEffect(() => {
     let animationFrame;
-    let startTime;
-    let startPlayhead;
+
+    // Stop Web Audio engine and pause reference audio
+    const stopAudio = () => {
+      audioEngine.stopAllSources();
+      if (referenceAudioRef.current.src) {
+        referenceAudioRef.current.pause();
+      }
+    };
 
     if (isPlaying) {
-      startTime = performance.now();
-      startPlayhead = playheadTime;
+      // Start Web Audio engine playback
+      audioEngine.resume();
+      audioEngine.startPlayback(tracksRef.current, playheadTime, clipDurations.current);
+
+      // Start reference track if loaded
+      if (referenceAudioRef.current.src) {
+        referenceAudioRef.current.currentTime = playheadTime;
+        referenceAudioRef.current.play().catch(() => {});
+      }
 
       const updatePlayhead = () => {
-        let elapsed = (performance.now() - startTime) / 1000;
-        let currentPlayhead = startPlayhead + elapsed;
+        let currentPlayhead = audioEngine.getCurrentTime();
 
-        let didSeek = false;
+        // Handle seek requests (user clicked on timeline during playback)
         if (seekRequestRef.current !== null) {
-          startPlayhead = seekRequestRef.current;
-          startTime = performance.now();
-          currentPlayhead = startPlayhead;
+          const seekTime = seekRequestRef.current;
           seekRequestRef.current = null;
-          didSeek = true;
+          audioEngine.stopAllSources();
+          audioEngine.startPlayback(tracksRef.current, seekTime, clipDurations.current);
+          currentPlayhead = seekTime;
+          audioEngine.playStartCtxTime = audioEngine.ctx.currentTime;
+          audioEngine.playStartPlayhead = seekTime;
+          audioEngine.isPlaying = true;
+          if (referenceAudioRef.current.src) {
+            referenceAudioRef.current.currentTime = seekTime;
+          }
         }
 
-        // Loop handling
+        // Handle looping
         if (isLoopingRef.current && currentPlayhead >= loopRightRef.current) {
-          const loopDuration = loopRightRef.current - loopLeftRef.current;
-          if (loopDuration > 0) {
-            const loops = Math.floor((currentPlayhead - loopLeftRef.current) / loopDuration);
-            currentPlayhead = currentPlayhead - (loops * loopDuration);
-            startPlayhead = currentPlayhead;
-            startTime = performance.now();
-            didSeek = true;
+          audioEngine.stopAllSources();
+          audioEngine.startPlayback(tracksRef.current, loopLeftRef.current, clipDurations.current);
+          currentPlayhead = loopLeftRef.current;
+          audioEngine.playStartCtxTime = audioEngine.ctx.currentTime;
+          audioEngine.playStartPlayhead = loopLeftRef.current;
+          audioEngine.isPlaying = true;
+          if (referenceAudioRef.current.src) {
+            referenceAudioRef.current.currentTime = loopLeftRef.current;
           }
         }
 
         setPlayheadTime(currentPlayhead);
 
-        // Determine if any track is soloed
-        const anySolo = tracksRef.current.some(t => t.isSoloed);
-
-        // Synchronize clip playback & volume
+        // Update WaveSurfer visual progress only (no audio from WaveSurfer)
         tracksRef.current.forEach(t => {
-          const shouldPlay = anySolo ? t.isSoloed : !t.isMuted;
-          const trackVol = t.volume !== undefined ? t.volume : 1;
-
           t.clips.forEach(c => {
             const ws = clipWsRefs.current[c.id];
             if (ws) {
-              // Apply volume (0.0 to 1.0) factoring in clip gain
-              const clipGain = c.gain !== undefined ? c.gain : 1;
-              const finalVol = Math.max(0, Math.min(1, trackVol * clipGain));
-              if (ws.getVolume() !== finalVol) ws.setVolume(finalVol);
-
-              const clipStart = c.offset;
-              const clipDur = (c.trimEndSec || clipDurations.current[c.id] || ws.getDuration()) - (c.trimStartSec || 0);
+              const clipStart = c.offset || 0;
+              const totalDur = ws.getDuration();
+              const clipDur = (c.trimEndSec || clipDurations.current[c.id] || totalDur) - (c.trimStartSec || 0);
               const clipEnd = clipStart + clipDur;
 
-              if (shouldPlay && currentPlayhead >= clipStart && currentPlayhead < clipEnd) {
-                if (!ws.isPlaying() || didSeek) {
-                  const totalDur = ws.getDuration();
-                  if (totalDur > 0) {
-                    const relativeTime = (currentPlayhead - clipStart) + (c.trimStartSec || 0);
-                    ws.seekTo(relativeTime / totalDur);
-                    if (!ws.isPlaying()) ws.play();
-                  }
-                }
-              } else {
-                if (ws.isPlaying()) ws.pause();
+              if (totalDur > 0 && currentPlayhead >= clipStart && currentPlayhead < clipEnd) {
+                const relativeTime = (currentPlayhead - clipStart) + (c.trimStartSec || 0);
+                ws.seekTo(Math.min(1, Math.max(0, relativeTime / totalDur)));
               }
             }
           });
         });
-        
-        if (referenceAudioRef.current.src) {
-          referenceAudioRef.current.currentTime = currentPlayhead;
-          referenceAudioRef.current.play().catch(e => console.log(e));
-        }
 
         animationFrame = requestAnimationFrame(updatePlayhead);
       };
+
       animationFrame = requestAnimationFrame(updatePlayhead);
     } else {
-      // Pause all wavesurfers when playback stops
-      tracksRef.current.forEach(t => {
-        t.clips.forEach(c => {
-          const ws = clipWsRefs.current[c.id];
-          if (ws && ws.isPlaying()) ws.pause();
-        });
-      });
-      if (referenceAudioRef.current.src) {
-        referenceAudioRef.current.pause();
-      }
+      stopAudio();
     }
 
-    return () => cancelAnimationFrame(animationFrame);
-  }, [isPlaying]); // Notice: Removed playheadTime, we recalculate internally
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      if (isPlaying) {
+        stopAudio();
+      }
+    };
+  }, [isPlaying]);
 
-  // When playhead moves manually while paused, update wavesurfers so they preview the frame
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      audioEngine.dispose();
+    };
+  }, []);
+
+  // Sync track effects / volume / mute / solo to Web Audio engine in real-time
+  useEffect(() => {
+    const anySolo = tracks.some(t => t.isSoloed);
+    const validClipIds = new Set();
+    
+    tracks.forEach(t => {
+      audioEngine.ensureTrackChain(t.id);
+      if (t.effects) audioEngine.updateEffects(t.id, t.effects);
+      const shouldPlay = anySolo ? t.isSoloed : !t.isMuted;
+      const vol = t.volume !== undefined ? t.volume : 1;
+      audioEngine.updateTrackVolume(t.id, vol, shouldPlay);
+      if (t.pan !== undefined) audioEngine.updateTrackPan(t.id, t.pan);
+      // Sync clip gains
+      t.clips.forEach(c => {
+        validClipIds.add(c.id);
+        audioEngine.updateClipGain(c.id, c.gain !== undefined ? c.gain : 1);
+      });
+    });
+
+    // If a clip was deleted while playing, stop its source
+    if (audioEngine.isPlaying) {
+      audioEngine.activeSources.forEach((entry, clipId) => {
+        if (!validClipIds.has(clipId)) {
+          try { entry.source.stop(); } catch(e) {}
+          audioEngine.activeSources.delete(clipId);
+        }
+      });
+    }
+  }, [tracks]);
+
+  // When playhead moves manually while paused, update WaveSurfer visuals
   useEffect(() => {
     if (!isPlaying) {
       tracksRef.current.forEach(t => {
         t.clips.forEach(c => {
           const ws = clipWsRefs.current[c.id];
           if (ws) {
-            const clipStart = c.offset;
-            const clipDur = (c.trimEndSec || clipDurations.current[c.id] || ws.getDuration()) - (c.trimStartSec || 0);
+            const clipStart = c.offset || 0;
+            const totalDur = ws.getDuration();
+            const clipDur = (c.trimEndSec || clipDurations.current[c.id] || totalDur) - (c.trimStartSec || 0);
             const clipEnd = clipStart + clipDur;
 
             if (playheadTime >= clipStart && playheadTime < clipEnd) {
-              const totalDur = ws.getDuration();
               if (totalDur > 0) {
                 const relativeTime = (playheadTime - clipStart) + (c.trimStartSec || 0);
-                ws.seekTo(relativeTime / totalDur);
+                ws.seekTo(Math.min(1, Math.max(0, relativeTime / totalDur)));
               }
             }
           }
@@ -1133,6 +1193,30 @@ const EditorPage = () => {
       }
       return t;
     }));
+  };
+
+  const handleAddTrack = () => {
+    const trackColors = ['rose', 'cyan', 'blue', 'pink'];
+    const newTrack = {
+      id: `t_${Date.now()}`,
+      name: `Track ${tracks.length + 1}`,
+      type: 'vocal',
+      color: trackColors[tracks.length % trackColors.length],
+      clips: [],
+      pan: 0,
+      volume: 1,
+      isMuted: false,
+      isSoloed: false,
+      effects: {
+        eq: { enabled: false, bands: [ { id: 1, type: 'highpass', freq: 80, gain: 0, q: 1 }, { id: 2, type: 'peaking', freq: 500, gain: 0, q: 1 }, { id: 3, type: 'peaking', freq: 2000, gain: 0, q: 1 }, { id: 4, type: 'highshelf', freq: 8000, gain: 0, q: 1 } ] },
+        deEsser: { enabled: false, amount: 50 },
+        compressor: { enabled: false, threshold: -15, ratio: 4 },
+        reverb: { enabled: false, type: 'valhalla', mix: 20 },
+        delay: { enabled: false, time: '1/4', mix: 10 },
+        saturation: { enabled: false, drive: 20 }
+      }
+    };
+    setTracks(prev => [...prev, newTrack]);
   };
 
   const handleUpdateClipOffset = (clipId, newOffset) => {
@@ -1331,14 +1415,14 @@ const EditorPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedClipId, playheadTime, tracks, clipboard, pushUndo, handleUndo, handleRedo, handleSeek, handleRemoveClip, handleSplitClip, setTracks]);
 
-  // Ctrl+Scroll Native Zoom (Must use native event to prevent browser page zoom)
+  // Native Zoom
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
     const handleNativeWheel = (e) => {
       if (e.ctrlKey || e.metaKey) {
-        e.preventDefault(); // Stop entire web page from zooming!
+        e.preventDefault();
         setZoomLevel(prev => {
           const delta = e.deltaY > 0 ? -10 : 10;
           return Math.max(10, Math.min(1000, prev + delta));
@@ -1350,7 +1434,34 @@ const EditorPage = () => {
     return () => container.removeEventListener('wheel', handleNativeWheel);
   }, []);
 
+  const handleApplyAILevelsToMixer = () => {
+    if (!sections || sections.length === 0) return;
+    
+    // Calculate average AI gain adjustments across all sections
+    let totalVocDb = 0;
+    let totalInstDb = 0;
+    let count = sections.length;
 
+    sections.forEach(s => {
+      totalVocDb += (s.mixing?.vocalGainDb || 0);
+      totalInstDb += (s.mixing?.instrumentalGainDb || 0);
+    });
+
+    const avgVocDb = totalVocDb / count;
+    const avgInstDb = totalInstDb / count;
+
+    const newVocGain = dbToGain(avgVocDb);
+    const newInstGain = dbToGain(avgInstDb);
+
+    setTracks(prev => prev.map(t => {
+      if (t.type === 'vocal') return { ...t, volume: newVocGain };
+      if (t.type === 'instrumental' || t.name.toLowerCase().includes('drum') || t.name.toLowerCase().includes('beat')) return { ...t, volume: newInstGain };
+      return t;
+    }));
+
+    // Jump to MixConsole so the user can see the faders have moved
+    setLowerZoneTab('mixer');
+  };
 
   useEffect(() => {
     if (automationData) {
@@ -1819,6 +1930,16 @@ const EditorPage = () => {
                       />
                     ))}
 
+                    {/* Add Track Button */}
+                    <div
+                      className="ml-[240px] m-2 p-2 border border-dashed border-[#333] hover:border-[#666] bg-[#1a1a1a] flex items-center justify-center cursor-pointer transition-colors rounded-sm group"
+                      onClick={handleAddTrack}
+                    >
+                      <span className="text-[#666] group-hover:text-cyan-400 text-xs font-bold flex items-center gap-2">
+                        <Plus className="w-4 h-4" /> ADD TRACK
+                      </span>
+                    </div>
+
                     {/* Global Playhead Line */}
                     <div
                       className="absolute top-0 bottom-0 w-px bg-white z-30 pointer-events-none"
@@ -2050,6 +2171,8 @@ const EditorPage = () => {
                                 onSeek={handleSeek}
                                 globalSummary={globalSummary}
                                 simpleExplanations={simpleExplanations}
+                                onApplyToMixer={handleApplyAILevelsToMixer}
+                                onNavigateToTab={(tab) => setLowerZoneTab(tab)}
                               />
                             )}
                           </div>

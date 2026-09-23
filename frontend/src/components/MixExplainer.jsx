@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   BarChart3, Clock, TrendingUp, TrendingDown, Minus,
   ChevronDown, ChevronUp, Mic, Guitar, Info,
-  CheckCircle2, AlertTriangle, AlertCircle, Sparkles, Play
+  CheckCircle2, AlertTriangle, AlertCircle, Sparkles, Play,
+  SlidersHorizontal
 } from 'lucide-react';
 
 const severityConfig = {
@@ -213,7 +214,7 @@ const SectionCard = ({ section, isActive, isExpanded, onToggle, onSeek }) => {
   );
 };
 
-const MixExplainer = ({ sections, currentTime, onSeek, globalSummary, simpleExplanations }) => {
+const MixExplainer = ({ sections, currentTime, onSeek, globalSummary, simpleExplanations, onApplyToMixer, onNavigateToTab }) => {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all' | 'significant' | 'adjusted' | 'optimal'
   const [viewMode, setViewMode] = useState('simple');
@@ -289,17 +290,21 @@ const MixExplainer = ({ sections, currentTime, onSeek, globalSummary, simpleExpl
         >
           <div className="flex items-start gap-3">
             <Sparkles className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
-            <div>
+            <div className="flex-1">
               <h3 className="text-sm font-semibold text-blue-200 mb-1">AI Mix Summary</h3>
-              <p className="text-sm text-gray-300 leading-relaxed">{globalSummary.summary}</p>
-              <div className="flex flex-wrap gap-3 mt-3">
-                {Object.entries(globalSummary.sectionBreakdown || {}).map(([type, count]) => (
-                  <span key={type} className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border ${
-                    sectionTypeColors[type] || 'bg-gray-500/20 text-gray-300 border-gray-500/30'
-                  }`}>
-                    {count}× {type}
-                  </span>
-                ))}
+              <p className="text-sm text-gray-300 leading-relaxed mb-4">{globalSummary.summary}</p>
+              
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(globalSummary.sectionBreakdown || {}).map(([type, count]) => (
+                    <span key={type} className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border ${
+                      sectionTypeColors[type] || 'bg-gray-500/20 text-gray-300 border-gray-500/30'
+                    }`}>
+                      {count}× {type}
+                    </span>
+                  ))}
+                </div>
+                
               </div>
             </div>
           </div>
@@ -307,31 +312,88 @@ const MixExplainer = ({ sections, currentTime, onSeek, globalSummary, simpleExpl
       )}
 
       {viewMode === 'simple' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {simpleExplanations && simpleExplanations.map((exp, idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
-              className="bg-black/40 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-all hover:bg-white/[0.02]"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
-                  <CheckCircle2 className="w-4 h-4" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {(() => {
+            // Calculate dynamic stats from actual sections
+            let avgVocDb = 0;
+            let avgInstDb = 0;
+            if (sections && sections.length > 0) {
+              sections.forEach(s => {
+                avgVocDb += (s.mixing?.vocalGainDb || 0);
+                avgInstDb += (s.mixing?.instrumentalGainDb || 0);
+              });
+              avgVocDb /= sections.length;
+              avgInstDb /= sections.length;
+            }
+
+            const cards = [];
+            
+            // Vocal Card
+            if (Math.abs(avgVocDb) > 0.5) {
+              cards.push({
+                icon: Mic,
+                title: 'Vocal Balance',
+                color: avgVocDb > 0 ? 'text-green-400' : 'text-amber-400',
+                bg: 'bg-rose-500/10',
+                desc: avgVocDb > 0 
+                  ? `Your vocals were a bit quiet. The AI boosted them by ${avgVocDb.toFixed(1)} dB so they stand out clearly over the beat.`
+                  : `Your vocals were too loud. The AI lowered them by ${Math.abs(avgVocDb).toFixed(1)} dB so they sit nicely in the mix.`,
+                targetTab: 'mixer'
+              });
+            } else {
+              cards.push({
+                icon: Mic,
+                title: 'Vocal Balance',
+                color: 'text-emerald-400',
+                bg: 'bg-emerald-500/10',
+                desc: 'Your vocal recording was already at a great volume! No major adjustments were needed.',
+                targetTab: 'mixer'
+              });
+            }
+
+            // Beat Card
+            if (Math.abs(avgInstDb) > 0.5) {
+              cards.push({
+                icon: Guitar,
+                title: 'Beat Volume',
+                color: avgInstDb < 0 ? 'text-green-400' : 'text-amber-400',
+                bg: 'bg-cyan-500/10',
+                desc: avgInstDb < 0 
+                  ? `The beat was overpowering the vocals. The AI turned it down by ${Math.abs(avgInstDb).toFixed(1)} dB to create space.`
+                  : `The beat was too quiet. The AI boosted it by ${avgInstDb.toFixed(1)} dB to bring energy to the track.`,
+                targetTab: 'mixer'
+              });
+            }
+
+            // Processing Card (Compression/EQ)
+            cards.push({
+              icon: Sparkles,
+              title: 'Studio Polish',
+              color: 'text-blue-400',
+              bg: 'bg-blue-500/10',
+              desc: 'The AI applied studio-grade Compression and EQ to smooth out harsh spikes and make the audio sound professional.',
+              targetTab: 'dsp'
+            });
+
+            return cards.map((card, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.1 }}
+                onClick={() => onNavigateToTab && onNavigateToTab(card.targetTab)}
+                className="bg-black/40 border border-white/10 rounded-2xl p-5 hover:border-white/30 transition-all hover:bg-white/[0.05] flex flex-col items-center text-center cursor-pointer group"
+              >
+                <div className={`w-12 h-12 rounded-full ${card.bg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                  <card.icon className={`w-6 h-6 ${card.color}`} />
                 </div>
-                <h3 className="text-white font-bold text-lg">{exp.action}</h3>
-              </div>
-              <p className="text-gray-400 leading-relaxed text-sm">
-                {exp.reason}
-              </p>
-            </motion.div>
-          ))}
-          {(!simpleExplanations || simpleExplanations.length === 0) && (
-            <div className="col-span-2 text-center py-12 text-gray-500">
-              Your mix was already perfectly balanced! The AI did not need to make any adjustments.
-            </div>
-          )}
+                <h3 className="text-white font-bold text-lg mb-2 group-hover:text-blue-300 transition-colors">{card.title}</h3>
+                <p className="text-gray-400 leading-relaxed text-sm">
+                  {card.desc}
+                </p>
+              </motion.div>
+            ));
+          })()}
         </div>
       ) : (
         <>

@@ -262,6 +262,11 @@ export const AudioProvider = ({ children }) => {
     }
   };
 
+  const dbToGain = (db) => {
+    if (db <= -60) return 0;
+    return Math.pow(10, db / 20);
+  };
+
   /**
    * 1-Click Auto Mix: POST vocal and instrumental directly to /api/automix
    */
@@ -300,11 +305,30 @@ export const AudioProvider = ({ children }) => {
       if (data.sections) setSections(data.sections);
       if (data.globalSummary) {
         setGlobalSummary(data.globalSummary);
+        
+        // Calculate average AI gain adjustments across all sections
+        let avgVocDb = 0;
+        let avgInstDb = 0;
+        if (data.sections && data.sections.length > 0) {
+          let totalVocDb = 0;
+          let totalInstDb = 0;
+          data.sections.forEach(s => {
+            totalVocDb += (s.mixing?.vocalGainDb || 0);
+            totalInstDb += (s.mixing?.instrumentalGainDb || 0);
+          });
+          avgVocDb = totalVocDb / data.sections.length;
+          avgInstDb = totalInstDb / data.sections.length;
+        }
+
+        const newVocGain = dbToGain(avgVocDb);
+        const newInstGain = dbToGain(avgInstDb);
+
         if (data.globalSummary.dspSettings) {
           setTracks(prev => prev.map(t => {
             if (t.type === 'vocal') {
               return {
                 ...t,
+                volume: newVocGain, // Auto-apply Vocal Volume
                 effects: {
                   ...t.effects,
                   reverb: { 
@@ -319,6 +343,10 @@ export const AudioProvider = ({ children }) => {
                   }
                 }
               };
+            }
+            // Auto-apply Instrumental Volume
+            if (t.type === 'instrumental' || t.name.toLowerCase().includes('drum') || t.name.toLowerCase().includes('beat')) {
+              return { ...t, volume: newInstGain };
             }
             return t;
           }));

@@ -53,6 +53,17 @@ const PanKnob = ({ value, onChange }) => {
   );
 };
 
+// Utility functions for Decibel conversion
+const gainToDb = (gain) => {
+  if (gain <= 0.001) return -60;
+  return 20 * Math.log10(gain);
+};
+
+const dbToGain = (db) => {
+  if (db <= -60) return 0;
+  return Math.pow(10, db / 20);
+};
+
 const ChannelStrip = ({ track, onVolumeChange, onPanChange, onMute, onSolo }) => {
   return (
     <div className="w-24 flex-shrink-0 bg-[#161616] border-r border-black flex flex-col items-center pt-3 pb-1 relative h-full shadow-[inset_-1px_0_0_rgba(255,255,255,0.02)]">
@@ -83,11 +94,11 @@ const ChannelStrip = ({ track, onVolumeChange, onPanChange, onMute, onSolo }) =>
            {/* Fader Thumb (styled range input) */}
            <input
             type="range"
-            min="0"
-            max="1.5"
-            step="0.01"
-            value={track.volume !== undefined ? track.volume : 1}
-            onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+            min="-60"
+            max="6"
+            step="0.1"
+            value={gainToDb(track.volume !== undefined ? track.volume : 1)}
+            onChange={(e) => onVolumeChange(dbToGain(parseFloat(e.target.value)))}
             className="absolute -left-[14px] top-1/2 -translate-y-1/2 w-[30px] h-[30px] z-10 appearance-none bg-transparent cursor-pointer mix-fader"
             style={{
               writingMode: 'vertical-lr',
@@ -114,7 +125,7 @@ const ChannelStrip = ({ track, onVolumeChange, onPanChange, onMute, onSolo }) =>
       
       {/* Value Display */}
       <div className="text-[10px] font-mono text-cyan-400/80 mb-2 bg-black px-2 py-0.5 rounded-[2px] border border-[#222]">
-        {Math.round((track.volume || 1) * 100)}%
+        {gainToDb(track.volume || 1).toFixed(1)} dB
       </div>
 
       {/* Track Label */}
@@ -145,11 +156,11 @@ const MasterStrip = ({ volume, onVolumeChange }) => {
         <div className="w-2.5 h-full bg-[#0a0a0a] rounded-full border border-[#111] relative flex justify-center">
            <input
             type="range"
-            min="0"
-            max="1.5"
-            step="0.01"
-            value={volume}
-            onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+            min="-60"
+            max="6"
+            step="0.1"
+            value={gainToDb(volume !== undefined ? volume : 1)}
+            onChange={(e) => onVolumeChange(dbToGain(parseFloat(e.target.value)))}
             className="absolute -left-[14px] top-1/2 -translate-y-1/2 w-[30px] h-[30px] z-10 appearance-none bg-transparent cursor-pointer mix-fader master"
             style={{
               writingMode: 'vertical-lr',
@@ -182,7 +193,7 @@ const MasterStrip = ({ volume, onVolumeChange }) => {
       </div>
 
       <div className="text-[10px] font-mono text-cyan-400 mb-2 font-bold">
-        {Math.round((volume || 1) * 100)}%
+        {gainToDb(volume || 1).toFixed(1)} dB
       </div>
 
       <div className="w-full px-2 mt-auto">
