@@ -314,7 +314,13 @@ class AudioPlaybackEngine {
     this.stopAllSources();
 
     this.isPlaying = true;
-    this.playStartCtxTime = this.ctx.currentTime;
+    
+    // 1. Establish a single ground-truth scheduling reference time slightly in the future (50ms buffer)
+    // This allows the JS loop to finish scheduling all clips before the audio actually starts playing!
+    const SCHEDULE_LATENCY = 0.05; 
+    const baseCtxTime = this.ctx.currentTime + SCHEDULE_LATENCY;
+    
+    this.playStartCtxTime = baseCtxTime;
     this.playStartPlayhead = playheadTime;
 
     const anySolo = tracks.some(t => t.isSoloed);
@@ -364,15 +370,17 @@ class AudioPlaybackEngine {
           }
         };
 
-        if (playheadTime >= clipStart) {
-          // Clip already in progress — start immediately at the right offset
+        // 2. PERFECT SYNC: Calculate exact absolute time on the Context Clock this clip should start
+        const absoluteScheduledTime = baseCtxTime + (clipStart - playheadTime);
+
+        if (absoluteScheduledTime <= baseCtxTime) {
+          // Clip already in progress — start immediately at the right offset (scheduled at baseCtxTime to sync with others)
           const offsetInClip = (playheadTime - clipStart) + trimStart;
           const remaining = clipEnd - playheadTime;
-          source.start(0, offsetInClip, remaining);
+          source.start(baseCtxTime, offsetInClip, remaining);
         } else {
-          // Clip starts in the future — schedule it
-          const delaySeconds = clipStart - playheadTime;
-          source.start(this.ctx.currentTime + delaySeconds, trimStart, clipDur);
+          // Clip starts in the future — schedule it precisely
+          source.start(absoluteScheduledTime, trimStart, clipDur);
         }
 
         this.activeSources.set(c.id, { source, clipGainNode });
@@ -390,7 +398,13 @@ class AudioPlaybackEngine {
 
   getCurrentTime() {
     if (!this.isPlaying || !this.ctx) return this.playStartPlayhead;
-    return this.playStartPlayhead + (this.ctx.currentTime - this.playStartCtxTime);
+    
+    // We scheduled audio with a 50ms buffer, so the visual playhead should wait for the buffer to elapse
+    // before it starts moving to stay in perfect frame-accurate sync!
+    const elapsed = this.ctx.currentTime - this.playStartCtxTime;
+    if (elapsed < 0) return this.playStartPlayhead;
+    
+    return this.playStartPlayhead + elapsed;
   }
 }
 

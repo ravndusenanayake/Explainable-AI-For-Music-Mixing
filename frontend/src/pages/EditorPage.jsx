@@ -44,7 +44,7 @@ const formatTimeRuler = (sec) => {
 // ==========================================
 // COMPONENT: Clip
 // ==========================================
-const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime, trackHeight, activeTool, onSplit, onToggleMute, onUpdateClipGain, showSpectrogram }) => {
+const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLevel, isSelected, onSelect, clipDurations, clipWsRefs, playheadTime, trackHeight, activeTool, onSplit, onToggleMute, onUpdateClipGain, showSpectrogram }) => {
   const containerRef = useRef(null);
   const [duration, setDuration] = useState(0);
   const [isDraggingGain, setIsDraggingGain] = useState(false);
@@ -218,8 +218,51 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
         />
       </div>
       {/* Trim handles */}
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-r border-black/20" />
-      <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-l border-black/20" />
+      <div 
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          const startX = e.clientX;
+          const startTrim = trimStart;
+          const startOffset = clip.offset;
+          
+          const onMove = (eMove) => {
+            const deltaX = eMove.clientX - startX;
+            const deltaSec = deltaX / zoomLevel;
+            const newTrimStart = Math.min(trimEnd - 0.1, Math.max(0, startTrim + deltaSec));
+            const actualDelta = newTrimStart - startTrim;
+            const newOffset = startOffset + actualDelta;
+            if (onUpdateTrim) onUpdateTrim(clip.id, newTrimStart, trimEnd, newOffset);
+          };
+          const onUp = () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+          };
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp);
+        }}
+        className="absolute left-0 top-0 bottom-0 w-2 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-r border-black/20 z-30" 
+      />
+      <div 
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          const startX = e.clientX;
+          const startTrimEnd = trimEnd;
+          
+          const onMove = (eMove) => {
+            const deltaX = eMove.clientX - startX;
+            const deltaSec = deltaX / zoomLevel;
+            const newTrimEnd = Math.max(trimStart + 0.1, Math.min(duration, startTrimEnd + deltaSec));
+            if (onUpdateTrim) onUpdateTrim(clip.id, trimStart, newTrimEnd, clip.offset);
+          };
+          const onUp = () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+          };
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp);
+        }}
+        className="absolute right-0 top-0 bottom-0 w-2 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-l border-black/20 z-30" 
+      />
       
       {/* Visual Gain Line overlay */}
       <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: `${Math.max(16, trackHeight - (localGain / 3) * trackHeight)}px` }}>
@@ -238,18 +281,20 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onRemove, zoomLevel, isSelecte
 // ==========================================
 // COMPONENT: RecordingClip
 // ==========================================
-const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream }) => {
-  const width = Math.max(0, (playheadTime - startTime)) * zoomLevel;
+const RecordingClip = ({ startTime, zoomLevel, trackHeight, stream }) => {
+  const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const peaksRef = useRef([]);
 
   useEffect(() => {
-    if (!stream || !canvasRef.current) return;
+    // stream can be either a ref object or a direct MediaStream
+    const actualStream = stream && stream.current ? stream.current : stream;
+    if (!actualStream || !canvasRef.current || !containerRef.current) return;
     
     // Create AudioContext to analyze live mic
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
-    const source = audioCtx.createMediaStreamSource(stream);
+    const source = audioCtx.createMediaStreamSource(actualStream);
     
     analyser.fftSize = 256;
     source.connect(analyser);
@@ -262,10 +307,17 @@ const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream
     
     let drawVisual;
     let lastDrawTime = performance.now();
+    const actualStartTime = performance.now();
     
     const draw = (time) => {
       drawVisual = requestAnimationFrame(draw);
       
+      // Update container width dynamically to follow time (bypassing React state)
+      if (containerRef.current) {
+        const elapsedSeconds = (time - actualStartTime) / 1000;
+        containerRef.current.style.width = `${elapsedSeconds * zoomLevel}px`;
+      }
+
       // Calculate current amplitude
       analyser.getByteTimeDomainData(dataArray);
       let max = 0;
@@ -322,11 +374,13 @@ const RecordingClip = ({ startTime, playheadTime, zoomLevel, trackHeight, stream
       cancelAnimationFrame(drawVisual);
       audioCtx.close();
     };
-  }, [stream]);
+  }, [stream, zoomLevel]);
 
   return (
     <div
-      style={{ left: startTime * zoomLevel, width: width, height: trackHeight - 4 }}
+      ref={containerRef}
+      id="recording-clip-active"
+      style={{ left: startTime * zoomLevel, height: trackHeight - 4, width: 0 }}
       className="absolute top-[2px] rounded-sm bg-[#959799] border border-[#666] overflow-hidden z-20"
     >
       <div className="absolute top-0 left-0 h-[16px] bg-[#d4d4d4] flex items-center px-1 border-b border-r border-[#666] z-10">
@@ -356,7 +410,7 @@ const dbToGain = (db) => {
   return Math.pow(10, db / 20);
 };
 
-const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack, activeTool, onSplitClip, onToggleClipMute, onUpdateClipGain, onToggleRecordEnable, onToggleMonitor, onToggleRead, onToggleWrite, isRecording, recordStartTime, targetRecordTrackId, activeStreamRef, showSpectrogram, onToggleFreeze }) => {
+const Track = ({ track, onDropMedia, onUpdateClipOffset, onUpdateClipTrim, onRemoveClip, zoomLevel, selectedClipId, onSelectClip, onSetPlayhead, clipDurations, clipWsRefs, playheadTime, trackHeight, onMuteToggle, onSoloToggle, onVolumeChange, onSelectTrack, isSelectedTrack, activeTool, onSplitClip, onToggleClipMute, onUpdateClipGain, onToggleRecordEnable, onToggleMonitor, onToggleRead, onToggleWrite, isRecording, recordStartTime, targetRecordTrackId, activeStreamRef, showSpectrogram, onToggleFreeze }) => {
   const trackRef = useRef(null);
   const [isLocked, setIsLocked] = useState(false);
 
@@ -473,12 +527,13 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onRemoveClip, zoomLevel
         {track.clips.map(clip => (
           <Clip
             key={clip.id} clip={clip} trackColor={track.color}
-            onUpdateOffset={(id, offset) => isLocked ? {} : onUpdateClipOffset(track.id, id, offset)}
-            onRemove={(id) => isLocked ? {} : onRemoveClip(track.id, id)}
+            onUpdateOffset={(id, offset) => isLocked ? {} : onUpdateClipOffset(id, offset)}
+            onUpdateTrim={(id, start, end, offset) => isLocked ? {} : onUpdateClipTrim(id, start, end, offset)}
+            onRemove={(id) => isLocked ? {} : onRemoveClip(id)}
             zoomLevel={zoomLevel} isSelected={selectedClipId === clip.id} onSelect={onSelectClip}
             clipDurations={clipDurations} clipWsRefs={clipWsRefs} playheadTime={playheadTime}
             trackHeight={trackHeight} activeTool={activeTool} onSplit={onSplitClip} onToggleMute={onToggleClipMute}
-            onUpdateClipGain={(id, gain) => isLocked ? {} : onUpdateClipGain(track.id, id, gain)}
+            onUpdateClipGain={(id, gain) => isLocked ? {} : onUpdateClipGain(id, gain)}
             showSpectrogram={showSpectrogram}
           />
         ))}
@@ -604,13 +659,14 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, i
 
       {/* Playhead Handle on Ruler */}
       <div
-        className="absolute top-0 bottom-0 z-50 pointer-events-none"
-        style={{ left: playheadTime * zoomLevel - 5.5 }}
+        id="ruler-playhead-handle"
+        className="absolute top-0 bottom-0 z-50 pointer-events-none flex flex-col"
+        style={{ left: playheadTime * zoomLevel - 5.5, width: '11px' }}
       >
-        <svg width="11" height="15" viewBox="0 0 11 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto drop-shadow-md">
+        <svg width="11" height="15" viewBox="0 0 11 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto drop-shadow-md flex-shrink-0">
           <path d="M1 1H10V8L5.5 14L1 8V1Z" fill="#141414" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
         </svg>
-        <div className="w-px h-full bg-white mx-auto -mt-px" />
+        <div className="w-px flex-1 bg-white mx-auto" />
       </div>
     </div>
   );
@@ -636,17 +692,32 @@ const EditorPage = () => {
   // DAW View State
   const [zoomLevel, setZoomLevel] = useState(50);
 
-  // Handle Ctrl + Scroll for horizontal zooming
+  // Handle Ctrl + Scroll for horizontal zooming, keeping mouse center
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
     const handleWheel = (e) => {
-      // Allow Ctrl+Scroll or just normal horizontal scroll to adjust zoom if needed
-      // Actually, many DAWs use Ctrl+Scroll for zoom
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        const delta = e.deltaY < 0 ? 10 : -10;
-        setZoomLevel(prev => Math.min(200, Math.max(10, prev + delta)));
+        setZoomLevel(prev => {
+          const delta = e.deltaY < 0 ? 10 : -10;
+          const newZoom = Math.min(200, Math.max(10, prev + delta));
+          if (newZoom === prev) return prev;
+
+          // Calculate time at mouse position
+          const rect = container.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left; // Mouse relative to container
+          const absoluteMouseX = container.scrollLeft + mouseX - 240; // Subtract track header
+          const timeAtMouse = Math.max(0, absoluteMouseX / prev);
+
+          // Scroll so the same time stays at the mouse position
+          requestAnimationFrame(() => {
+            const newAbsoluteMouseX = timeAtMouse * newZoom;
+            container.scrollLeft = Math.max(0, newAbsoluteMouseX - mouseX + 240);
+          });
+
+          return newZoom;
+        });
       }
     };
     container.addEventListener('wheel', handleWheel, { passive: false });
@@ -673,6 +744,7 @@ const EditorPage = () => {
   // Selection State
   const [selectedClipId, setSelectedClipId] = useState(null);
   const [selectedTrackId, setSelectedTrackId] = useState(null);
+  const [activeTool, setActiveTool] = useState('pointer'); // 'pointer' | 'split' | 'erase' | 'mute'
   const [clipboard, setClipboard] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -745,8 +817,11 @@ const EditorPage = () => {
   // ==========================================
   const [isRecording, setIsRecording] = useState(false);
   const [recordStartTime, setRecordStartTime] = useState(null);
+  const recordStartTimeRef = useRef(null);
+  useEffect(() => { recordStartTimeRef.current = recordStartTime; }, [recordStartTime]);
   const [targetRecordTrackId, setTargetRecordTrackId] = useState(null);
   const [measuredLatencyMs, setMeasuredLatencyMs] = useState(null);
+  const [manualLatencyMs, setManualLatencyMs] = useState(0);
   const activeStreamRef = useRef(null);
   const recordingStartOffsetRef = useRef(0);
   const recordingTargetTrackRef = useRef(null);
@@ -788,16 +863,31 @@ const EditorPage = () => {
         const finalTrackId = recordingTargetTrackRef.current;
         if (finalTrackId) {
           pushUndo();
-          // Apply latency compensation: shift the clip earlier by the measured input latency
-          const latencyCompensation = recordingLatencyRef.current;
-          const compensatedOffset = Math.max(0, recordingStartOffsetRef.current - latencyCompensation);
-          console.log(`[Recording] Latency compensation: ${(latencyCompensation * 1000).toFixed(1)}ms | Raw offset: ${recordingStartOffsetRef.current.toFixed(3)}s → Compensated: ${compensatedOffset.toFixed(3)}s`);
+          // Apply latency compensation
+          const latencyCompensation = recordingLatencyRef.current + (manualLatencyMs / 1000);
+          
+          let compensatedOffset;
+          let trimStartComp;
+          
+          if (latencyCompensation >= 0) {
+            // Audio arrived late (normal). Keep clip exactly where recording started on the timeline, 
+            // but trim the initial silence from the file.
+            compensatedOffset = recordingStartOffsetRef.current;
+            trimStartComp = latencyCompensation;
+          } else {
+            // Negative latency (user wants to delay audio). Shift clip forward on timeline.
+            compensatedOffset = recordingStartOffsetRef.current - latencyCompensation;
+            trimStartComp = 0;
+          }
+
+          console.log(`[Recording] Latency compensation: ${(latencyCompensation * 1000).toFixed(1)}ms (Auto: ${(recordingLatencyRef.current * 1000).toFixed(1)}ms, Manual: ${manualLatencyMs}ms) | Raw offset: ${recordingStartOffsetRef.current.toFixed(3)}s → Compensated: ${compensatedOffset.toFixed(3)}s (Trim: ${trimStartComp.toFixed(3)}s)`);
 
           const newClip = {
             id: `clip_${Date.now()}`,
             mediaId: newMedia.id,
             file: file,
             offset: compensatedOffset,
+            trimStartSec: trimStartComp,
             name: 'Live Take'
           };
           setTracks(prev => prev.map(t =>
@@ -921,14 +1011,15 @@ const EditorPage = () => {
         limiter.connect(processor);
         processor.connect(recCtx.destination);
 
-        // Save current playhead and target track
-        recordingStartOffsetRef.current = playheadTime;
+        // Save current playhead and target track — use ref for accurate real-time position
+        const actualPlayheadTime = playheadTimeRef.current !== undefined ? playheadTimeRef.current : playheadTime;
+        recordingStartOffsetRef.current = actualPlayheadTime;
         const targetTrackId = selectedTrackId || tracks[0]?.id;
         recordingTargetTrackRef.current = targetTrackId;
 
         setIsRecording(true);
         setIsPlaying(true);
-        setRecordStartTime(playheadTime);
+        setRecordStartTime(actualPlayheadTime);
         setTargetRecordTrackId(targetTrackId);
       } catch (err) {
         console.error("Microphone access denied or error:", err);
@@ -962,6 +1053,10 @@ const EditorPage = () => {
   useEffect(() => { loopLeftRef.current = loopLeft; }, [loopLeft]);
   const loopRightRef = useRef(loopRight);
   useEffect(() => { loopRightRef.current = loopRight; }, [loopRight]);
+
+  const playheadTimeRef = useRef(playheadTime);
+  const zoomLevelRef = useRef(zoomLevel);
+  useEffect(() => { zoomLevelRef.current = zoomLevel; }, [zoomLevel]);
 
   const seekRequestRef = useRef(null);
   const handleSeek = (time) => {
@@ -1038,7 +1133,30 @@ const EditorPage = () => {
           }
         }
 
-        setPlayheadTime(currentPlayhead);
+        // --- DIRECT DOM UPDATES FOR ZERO-LATENCY PLAYHEAD (bypassing React re-renders) ---
+        const currentZoom = zoomLevelRef.current;
+        playheadTimeRef.current = currentPlayhead;
+
+        const globalLine = document.getElementById('global-playhead-line');
+        if (globalLine) globalLine.style.left = `${240 + currentPlayhead * currentZoom}px`;
+
+        const rulerHandle = document.getElementById('ruler-playhead-handle');
+        if (rulerHandle) rulerHandle.style.left = `${currentPlayhead * currentZoom - 5.5}px`;
+
+        const timecodeDisplay = document.getElementById('timecode-display');
+        if (timecodeDisplay) {
+          const m = Math.floor(currentPlayhead / 60).toString().padStart(2, '0');
+          const s = Math.floor(currentPlayhead % 60).toString().padStart(2, '0');
+          const ms = Math.floor((currentPlayhead % 1) * 100).toString().padStart(2, '0');
+          timecodeDisplay.innerText = `${m}:${s}.${ms}`;
+        }
+
+        if (isRecordingRef.current) {
+          const recClip = document.getElementById('recording-clip-active');
+          if (recClip) {
+             recClip.style.width = `${Math.max(0, currentPlayhead - recordStartTimeRef.current) * currentZoom}px`;
+          }
+        }
 
         // Update WaveSurfer visual progress only (no audio from WaveSurfer)
         tracksRef.current.forEach(t => {
@@ -1058,18 +1176,40 @@ const EditorPage = () => {
           });
         });
 
+        // Auto-scroll timeline to follow playhead (only while playing)
+        if (scrollContainerRef.current) {
+          const container = scrollContainerRef.current;
+          const playheadPixel = 240 + currentPlayhead * currentZoom;
+          const visibleRightEdge = container.scrollLeft + container.clientWidth;
+          const visibleLeftEdge = container.scrollLeft + 240;
+
+          if (playheadPixel > visibleRightEdge - 50) {
+            container.scrollLeft = playheadPixel - 240 - 50;
+          } else if (playheadPixel < visibleLeftEdge) {
+            container.scrollLeft = Math.max(0, playheadPixel - 240 - 50);
+          }
+        }
+
         animationFrame = requestAnimationFrame(updatePlayhead);
       };
 
       animationFrame = requestAnimationFrame(updatePlayhead);
     } else {
       stopAudio();
+      // Sync the React state back to the exact time we stopped at (only once!)
+      if (playheadTimeRef.current !== undefined) {
+        setPlayheadTime(playheadTimeRef.current);
+      }
     }
 
     return () => {
       cancelAnimationFrame(animationFrame);
       if (isPlaying) {
         stopAudio();
+        // Sync the React state back to the exact time we stopped at
+        if (playheadTimeRef.current !== undefined) {
+          setPlayheadTime(playheadTimeRef.current);
+        }
       }
     };
   }, [isPlaying]);
@@ -1222,6 +1362,11 @@ const EditorPage = () => {
   const handleUpdateClipOffset = (clipId, newOffset) => {
     pushUndo();
     setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.map(c => c.id === clipId ? { ...c, offset: newOffset } : c) })));
+  };
+
+  const handleUpdateClipTrim = (clipId, newTrimStartSec, newTrimEndSec, newOffset) => {
+    pushUndo();
+    setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.map(c => c.id === clipId ? { ...c, trimStartSec: newTrimStartSec, trimEndSec: newTrimEndSec, offset: newOffset } : c) })));
   };
 
   const handleUpdateClipGain = useCallback((clipId, newGain) => {
@@ -1731,13 +1876,26 @@ const EditorPage = () => {
               <button
                 onClick={handleRecordToggle}
                 className={`w-9 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors ${isRecording ? 'animate-pulse bg-red-900/40' : ''}`}
-                title={isRecording && measuredLatencyMs !== null ? `Recording — Latency: ${measuredLatencyMs}ms (compensated)` : 'Record (Live)'}
+                title={isRecording && measuredLatencyMs !== null ? `Recording — Latency: ${measuredLatencyMs}ms (auto) + ${manualLatencyMs}ms (manual)` : 'Record (Live)'}
               >
                 <Circle className={`w-3.5 h-3.5 ${isRecording ? 'text-red-500 fill-red-500' : 'text-[#c0c0c0]'}`} />
               </button>
+              
+              {/* Manual Latency Input */}
+              <div className="flex items-center mx-1 group" title="Manual Recording Latency Offset (ms) - Adjust this if your vocal records out of sync">
+                <span className="text-[9px] text-[#666] group-hover:text-[#aaa] mr-1">LATENCY:</span>
+                <input
+                  type="number"
+                  value={manualLatencyMs}
+                  onChange={(e) => setManualLatencyMs(parseInt(e.target.value) || 0)}
+                  className="w-12 h-5 bg-black border border-[#333] text-cyan-400 text-[10px] font-mono text-center rounded-[2px] outline-none focus:border-cyan-500"
+                />
+                <span className="text-[9px] text-[#666] ml-1">ms</span>
+              </div>
+
               {isRecording && measuredLatencyMs !== null && (
-                <span className="text-[9px] text-yellow-400 font-mono ml-0.5 whitespace-nowrap" title="Input latency (auto-compensated)">
-                  {measuredLatencyMs}ms
+                <span className="text-[9px] text-yellow-400 font-mono ml-0.5 whitespace-nowrap" title="Browser-reported input latency">
+                  +{measuredLatencyMs}ms
                 </span>
               )}
 
@@ -1762,7 +1920,7 @@ const EditorPage = () => {
 
               {/* Timecode LED Display */}
               <div className="ml-2 bg-black border border-[#222] px-3 h-7 flex items-center justify-center rounded-[2px] min-w-[80px]">
-                <span className="font-mono text-cyan-400 text-xs tracking-wider font-bold">
+                <span id="timecode-display" className="font-mono text-cyan-400 text-xs tracking-wider font-bold">
                   {formatTimecode(playheadTime)}
                 </span>
               </div>
@@ -1918,7 +2076,7 @@ const EditorPage = () => {
                     {tracks.map(track => (
                       <Track
                         key={track.id} track={track} onDropMedia={handleDropMedia}
-                        onUpdateClipOffset={handleUpdateClipOffset} onRemoveClip={handleRemoveClip}
+                        onUpdateClipOffset={handleUpdateClipOffset} onUpdateClipTrim={handleUpdateClipTrim} onRemoveClip={handleRemoveClip}
                         zoomLevel={zoomLevel} selectedClipId={selectedClipId} onSelectClip={setSelectedClipId}
                         onSetPlayhead={handleSeek} clipDurations={clipDurations} clipWsRefs={clipWsRefs}
                         playheadTime={playheadTime} trackHeight={trackHeight}
@@ -1927,6 +2085,8 @@ const EditorPage = () => {
                         isRecording={isRecording} recordStartTime={recordStartTime} targetRecordTrackId={targetRecordTrackId} activeStreamRef={activeStreamRef.current}
                         onUpdateClipGain={handleUpdateClipGain} showSpectrogram={showSpectrogram}
                         onToggleFreeze={(trackId) => setTracks(prev => prev.map(t => t.id === trackId ? { ...t, isFrozen: !t.isFrozen } : t))}
+                        onSplitClip={handleSplitClip} activeTool={activeTool}
+                        onToggleClipMute={(clipId) => setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.map(c => c.id === clipId ? { ...c, isMuted: !c.isMuted } : c) })))}
                       />
                     ))}
 
@@ -1947,7 +2107,8 @@ const EditorPage = () => {
 
                     {/* Global Playhead Line */}
                     <div
-                      className="absolute top-0 bottom-0 w-px bg-white z-30 pointer-events-none"
+                      id="global-playhead-line"
+                      className="absolute top-[28px] bottom-0 w-px bg-white z-30 pointer-events-none"
                       style={{ left: 240 + playheadTime * zoomLevel }}
                     />
                   </div>
