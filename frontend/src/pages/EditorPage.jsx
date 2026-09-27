@@ -2362,7 +2362,7 @@ const EditorPage = () => {
                     {/* DSP CONTROLS TAB */}
                     {lowerZoneTab === 'dsp' && (
                       <div className="p-4 overflow-auto h-full">
-                        <DSPControls />
+                        <DSPControls selectedTrackId={selectedTrackId} />
                       </div>
                     )}
 
