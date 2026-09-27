@@ -1,14 +1,42 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Sliders, Waves, Info } from 'lucide-react';
+import { useAudioContext } from '../context/AudioContext';
 
-const DSPControls = () => {
-  const [eq, setEq] = useState({ low: 0, mid: 0, high: 0 });
-  const [reverb, setReverb] = useState(20);
+const DSPControls = ({ selectedTrackId }) => {
+  const { tracks, updateTrackEffect } = useAudioContext();
+  const track = tracks.find(t => t.id === selectedTrackId);
+  const effects = track?.effects || {};
+
+  const eq = effects.eq || { lowGain: 0, midGain: 0, highGain: 0, enabled: false };
+  const reverb = effects.reverb || { mix: 0, enabled: false };
 
   const handleEqChange = (band, value) => {
-    setEq({ ...eq, [band]: value });
+    updateTrackEffect(selectedTrackId, 'eq', {
+      ...eq,
+      [`${band}Gain`]: value,
+      enabled: true
+    });
   };
+
+  const handleReverbChange = (value) => {
+    updateTrackEffect(selectedTrackId, 'reverb', {
+      ...reverb,
+      mix: value,
+      enabled: true
+    });
+  };
+
+  if (!track) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500 text-xs">
+        <div className="text-center">
+          <Sliders className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p>Select a track to apply DSP controls</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div 
@@ -45,19 +73,19 @@ const DSPControls = () => {
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-300 font-medium">Low (Bass/Sub)</span>
-                <span className="text-blue-400 font-mono">{eq.low > 0 ? '+' : ''}{eq.low} dB</span>
+                <span className="text-blue-400 font-mono">{eq.lowGain > 0 ? '+' : ''}{eq.lowGain} dB</span>
               </div>
               <input 
                 type="range" 
                 min="-12" max="12" step="0.1" 
-                value={eq.low} 
+                value={eq.lowGain} 
                 onChange={(e) => handleEqChange('low', parseFloat(e.target.value))}
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
               <p className="text-xs text-blue-300 mt-1 h-8">
-                {eq.low === 0 && <span className="text-gray-500">Neutral bass balance.</span>}
-                {eq.low > 0 && "Boosting bass adds weight and punch, but too much causes muddiness."}
-                {eq.low < 0 && "Cutting bass removes rumble and mud, but too much makes the mix thin."}
+                {eq.lowGain === 0 && <span className="text-gray-500">Neutral bass balance.</span>}
+                {eq.lowGain > 0 && "Boosting bass adds weight and punch, but too much causes muddiness."}
+                {eq.lowGain < 0 && "Cutting bass removes rumble and mud, but too much makes the mix thin."}
               </p>
             </div>
 
@@ -65,19 +93,19 @@ const DSPControls = () => {
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-300 font-medium">Mid (Vocals/Instruments)</span>
-                <span className="text-blue-400 font-mono">{eq.mid > 0 ? '+' : ''}{eq.mid} dB</span>
+                <span className="text-blue-400 font-mono">{eq.midGain > 0 ? '+' : ''}{eq.midGain} dB</span>
               </div>
               <input 
                 type="range" 
                 min="-12" max="12" step="0.1" 
-                value={eq.mid} 
+                value={eq.midGain} 
                 onChange={(e) => handleEqChange('mid', parseFloat(e.target.value))}
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
               <p className="text-xs text-blue-300 mt-1 h-8">
-                {eq.mid === 0 && <span className="text-gray-500">Neutral vocal/instrument presence.</span>}
-                {eq.mid > 0 && "Boosting mids adds presence, but too much sounds harsh or 'honky'."}
-                {eq.mid < 0 && "Cutting mids removes harshness, but too much hollows out the track."}
+                {eq.midGain === 0 && <span className="text-gray-500">Neutral vocal/instrument presence.</span>}
+                {eq.midGain > 0 && "Boosting mids adds presence, but too much sounds harsh or 'honky'."}
+                {eq.midGain < 0 && "Cutting mids removes harshness, but too much hollows out the track."}
               </p>
             </div>
 
@@ -85,19 +113,19 @@ const DSPControls = () => {
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-300 font-medium">High (Air/Treble)</span>
-                <span className="text-blue-400 font-mono">{eq.high > 0 ? '+' : ''}{eq.high} dB</span>
+                <span className="text-blue-400 font-mono">{eq.highGain > 0 ? '+' : ''}{eq.highGain} dB</span>
               </div>
               <input 
                 type="range" 
                 min="-12" max="12" step="0.1" 
-                value={eq.high} 
+                value={eq.highGain} 
                 onChange={(e) => handleEqChange('high', parseFloat(e.target.value))}
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
               <p className="text-xs text-blue-300 mt-1 h-8">
-                {eq.high === 0 && <span className="text-gray-500">Neutral treble/air balance.</span>}
-                {eq.high > 0 && "Boosting highs adds sparkle and air, but too much causes piercing sibilance."}
-                {eq.high < 0 && "Cutting highs removes piercing sounds, but too much makes it dull."}
+                {eq.highGain === 0 && <span className="text-gray-500">Neutral treble/air balance.</span>}
+                {eq.highGain > 0 && "Boosting highs adds sparkle and air, but too much causes piercing sibilance."}
+                {eq.highGain < 0 && "Cutting highs removes piercing sounds, but too much makes it dull."}
               </p>
             </div>
           </div>
@@ -123,7 +151,7 @@ const DSPControls = () => {
                  {/* Visual indicator of reverb amount */}
                  <div 
                    className="absolute inset-0 border-2 border-violet-500/40 rounded-full animate-ping"
-                   style={{ animationDuration: `${3 - (reverb / 100) * 2}s`, opacity: reverb / 100 }}
+                   style={{ animationDuration: `${3 - (reverb.mix / 100) * 2}s`, opacity: reverb.mix / 100 }}
                  />
               </div>
             </div>
@@ -131,20 +159,20 @@ const DSPControls = () => {
             <div className="flex flex-col gap-2 mt-auto">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-300 font-medium">Wet / Dry Mix</span>
-                <span className="text-violet-400 font-mono">{reverb}%</span>
+                <span className="text-violet-400 font-mono">{reverb.mix}%</span>
               </div>
               <input 
                 type="range" 
                 min="0" max="100" step="1" 
-                value={reverb} 
-                onChange={(e) => setReverb(parseInt(e.target.value))}
+                value={reverb.mix} 
+                onChange={(e) => handleReverbChange(parseInt(e.target.value))}
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
               />
               <p className="text-xs text-violet-300 text-center mt-2 h-8">
-                {reverb === 0 && <span className="text-gray-500">Dry signal. Sounds very close and in-your-face.</span>}
-                {reverb > 0 && reverb <= 30 && "Subtle ambiance. Adds natural depth without muddying."}
-                {reverb > 30 && reverb <= 60 && "Noticeable space. Good for creating a distinct room feel."}
-                {reverb > 60 && "Heavy wash. Pushes the sound far back, can easily become muddy."}
+                {reverb.mix === 0 && <span className="text-gray-500">Dry signal. Sounds very close and in-your-face.</span>}
+                {reverb.mix > 0 && reverb.mix <= 30 && "Subtle ambiance. Adds natural depth without muddying."}
+                {reverb.mix > 30 && reverb.mix <= 60 && "Noticeable space. Good for creating a distinct room feel."}
+                {reverb.mix > 60 && "Heavy wash. Pushes the sound far back, can easily become muddy."}
               </p>
             </div>
           </div>

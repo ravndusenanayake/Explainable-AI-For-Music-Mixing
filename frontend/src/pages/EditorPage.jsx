@@ -57,10 +57,10 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLe
   const handleGainPointerDown = (e) => {
     e.stopPropagation();
     setIsDraggingGain(true);
-    
+
     const startY = e.clientY;
     const startGain = localGain;
-    
+
     const onMove = (eMove) => {
       const deltaY = startY - eMove.clientY;
       let newGain = startGain + (deltaY / 100);
@@ -68,13 +68,13 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLe
       setLocalGain(newGain);
       if (onUpdateClipGain) onUpdateClipGain(clip.id, newGain);
     };
-    
+
     const onUp = () => {
       setIsDraggingGain(false);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-    
+
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   };
@@ -151,7 +151,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLe
       dragConstraints={{ left: 0 }}
       dragElastic={0}
       dragMomentum={false}
-      onPointerDown={(e) => { 
+      onPointerDown={(e) => {
         e.stopPropagation();
         if (activeTool === 'erase') {
           onRemove(clip.id);
@@ -163,7 +163,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLe
           const splitTime = clip.offset + (clickX / zoomLevel);
           if (onSplit) onSplit(clip.id, splitTime);
         } else {
-          onSelect(clip.id); 
+          onSelect(clip.id);
         }
       }}
       onDragEnd={(e, info) => {
@@ -192,12 +192,12 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLe
       {/* Clip Header with Name */}
       <div className="absolute top-0 left-0 right-0 h-[16px] bg-black/40 flex items-center justify-between px-1.5 z-10 border-b border-black/30">
         <span className="text-[9px] font-bold text-white/90 truncate leading-none drop-shadow-md">{clip.name}</span>
-        
+
         {/* Gain Handle */}
-        <div 
-           onPointerDown={handleGainPointerDown}
-           className="w-4 h-4 flex items-center justify-center cursor-ns-resize hover:bg-white/20 rounded-full mx-1 absolute left-1/2 -translate-x-1/2"
-           title={`Clip Gain: ${gainDb}dB`}
+        <div
+          onPointerDown={handleGainPointerDown}
+          className="w-4 h-4 flex items-center justify-center cursor-ns-resize hover:bg-white/20 rounded-full mx-1 absolute left-1/2 -translate-x-1/2"
+          title={`Clip Gain: ${gainDb}dB`}
         >
           <div className="w-2 h-0.5 bg-white/80" />
         </div>
@@ -218,13 +218,13 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLe
         />
       </div>
       {/* Trim handles */}
-      <div 
+      <div
         onPointerDown={(e) => {
           e.stopPropagation();
           const startX = e.clientX;
           const startTrim = trimStart;
           const startOffset = clip.offset;
-          
+
           const onMove = (eMove) => {
             const deltaX = eMove.clientX - startX;
             const deltaSec = deltaX / zoomLevel;
@@ -240,14 +240,14 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLe
           window.addEventListener('pointermove', onMove);
           window.addEventListener('pointerup', onUp);
         }}
-        className="absolute left-0 top-0 bottom-0 w-2 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-r border-black/20 z-30" 
+        className="absolute left-0 top-0 bottom-0 w-2 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-r border-black/20 z-30"
       />
-      <div 
+      <div
         onPointerDown={(e) => {
           e.stopPropagation();
           const startX = e.clientX;
           const startTrimEnd = trimEnd;
-          
+
           const onMove = (eMove) => {
             const deltaX = eMove.clientX - startX;
             const deltaSec = deltaX / zoomLevel;
@@ -261,12 +261,12 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLe
           window.addEventListener('pointermove', onMove);
           window.addEventListener('pointerup', onUp);
         }}
-        className="absolute right-0 top-0 bottom-0 w-2 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-l border-black/20 z-30" 
+        className="absolute right-0 top-0 bottom-0 w-2 bg-black/20 hover:bg-white/50 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity border-l border-black/20 z-30"
       />
-      
+
       {/* Visual Gain Line overlay */}
       <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: `${Math.max(16, trackHeight - (localGain / 3) * trackHeight)}px` }}>
-         <div className="w-full border-t border-dashed border-white/50" />
+        <div className="w-full border-t border-dashed border-white/50" />
       </div>
 
       {isDraggingGain && (
@@ -290,28 +290,28 @@ const RecordingClip = ({ startTime, zoomLevel, trackHeight, stream }) => {
     // stream can be either a ref object or a direct MediaStream
     const actualStream = stream && stream.current ? stream.current : stream;
     if (!actualStream || !canvasRef.current || !containerRef.current) return;
-    
+
     // Create AudioContext to analyze live mic
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
     const source = audioCtx.createMediaStreamSource(actualStream);
-    
+
     analyser.fftSize = 256;
     source.connect(analyser);
-    
+
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
-    
+
     const canvas = canvasRef.current;
     const canvasCtx = canvas.getContext('2d');
-    
+
     let drawVisual;
     let lastDrawTime = performance.now();
     const actualStartTime = performance.now();
-    
+
     const draw = (time) => {
       drawVisual = requestAnimationFrame(draw);
-      
+
       // Update container width dynamically to follow time (bypassing React state)
       if (containerRef.current) {
         const elapsedSeconds = (time - actualStartTime) / 1000;
@@ -325,51 +325,51 @@ const RecordingClip = ({ startTime, zoomLevel, trackHeight, stream }) => {
         const val = Math.abs((dataArray[i] / 128.0) - 1.0);
         if (val > max) max = val;
       }
-      
+
       // Store a peak every 30ms for historical building waveform
       if (time - lastDrawTime > 30) {
         peaksRef.current.push(max);
         lastDrawTime = time;
       }
-      
+
       // Dynamically update canvas internal resolution to match container width
       const displayWidth = canvas.clientWidth;
       if (canvas.width !== displayWidth) {
-         canvas.width = Math.max(displayWidth, 1);
+        canvas.width = Math.max(displayWidth, 1);
       }
       const cHeight = canvas.height;
-      
+
       canvasCtx.clearRect(0, 0, canvas.width, cHeight);
-      
+
       // Draw true waveform peaks
       canvasCtx.fillStyle = '#2a2b2d'; // Dark gray waveform matching Cubase
       canvasCtx.beginPath();
-      
+
       const numPeaks = peaksRef.current.length;
       if (numPeaks === 0) return;
-      
+
       const step = canvas.width / numPeaks;
       const centerY = cHeight / 2;
-      
+
       // Draw top half
       canvasCtx.moveTo(0, centerY);
       for (let i = 0; i < numPeaks; i++) {
         const h = Math.max(2, peaksRef.current[i] * cHeight * 1.5); // Add minimum height and scale up slightly
-        canvasCtx.lineTo(i * step, centerY - h/2);
+        canvasCtx.lineTo(i * step, centerY - h / 2);
       }
-      
+
       // Draw bottom half backwards
       for (let i = numPeaks - 1; i >= 0; i--) {
         const h = Math.max(2, peaksRef.current[i] * cHeight * 1.5);
-        canvasCtx.lineTo(i * step, centerY + h/2);
+        canvasCtx.lineTo(i * step, centerY + h / 2);
       }
-      
+
       canvasCtx.closePath();
       canvasCtx.fill();
     };
-    
+
     draw(performance.now());
-    
+
     return () => {
       cancelAnimationFrame(drawVisual);
       audioCtx.close();
@@ -389,7 +389,7 @@ const RecordingClip = ({ startTime, zoomLevel, trackHeight, stream }) => {
         </span>
       </div>
       <div className="w-full h-full relative overflow-hidden">
-         <canvas ref={canvasRef} className="w-full h-full opacity-90" height={trackHeight - 4} />
+        <canvas ref={canvasRef} className="w-full h-full opacity-90" height={trackHeight - 4} />
       </div>
     </div>
   );
@@ -544,12 +544,12 @@ const Track = ({ track, onDropMedia, onUpdateClipOffset, onUpdateClipTrim, onRem
             </span>
           </div>
         )}
-        
+
         {/* Render Live Recording Block if applicable */}
         {isRecording && targetRecordTrackId === track.id && recordStartTime !== null && (
           <RecordingClip startTime={recordStartTime} playheadTime={playheadTime} zoomLevel={zoomLevel} trackHeight={trackHeight} stream={activeStreamRef} />
         )}
-        
+
         {/* Automation Lane overlay */}
         <AutomationLane data={track.automation} color={track.color} zoomLevel={zoomLevel} trackHeight={trackHeight} />
       </div>
@@ -865,10 +865,10 @@ const EditorPage = () => {
           pushUndo();
           // Apply latency compensation
           const latencyCompensation = recordingLatencyRef.current + (manualLatencyMs / 1000);
-          
+
           let compensatedOffset;
           let trimStartComp;
-          
+
           if (latencyCompensation >= 0) {
             // Audio arrived late (normal). Keep clip exactly where recording started on the timeline, 
             // but trim the initial silence from the file.
@@ -971,7 +971,7 @@ const EditorPage = () => {
         const highPassFilter = recCtx.createBiquadFilter();
         highPassFilter.type = 'highpass';
         highPassFilter.frequency.value = 100;
-        
+
         // 2. High-Shelf Filter (Air/Presence): Boosts high frequencies above 5kHz for clarity
         const highShelfFilter = recCtx.createBiquadFilter();
         highShelfFilter.type = 'highshelf';
@@ -1099,7 +1099,7 @@ const EditorPage = () => {
       // Start reference track if loaded
       if (referenceAudioRef.current.src) {
         referenceAudioRef.current.currentTime = playheadTime;
-        referenceAudioRef.current.play().catch(() => {});
+        referenceAudioRef.current.play().catch(() => { });
       }
 
       const updatePlayhead = () => {
@@ -1154,7 +1154,7 @@ const EditorPage = () => {
         if (isRecordingRef.current) {
           const recClip = document.getElementById('recording-clip-active');
           if (recClip) {
-             recClip.style.width = `${Math.max(0, currentPlayhead - recordStartTimeRef.current) * currentZoom}px`;
+            recClip.style.width = `${Math.max(0, currentPlayhead - recordStartTimeRef.current) * currentZoom}px`;
           }
         }
 
@@ -1225,7 +1225,7 @@ const EditorPage = () => {
   useEffect(() => {
     const anySolo = tracks.some(t => t.isSoloed);
     const validClipIds = new Set();
-    
+
     tracks.forEach(t => {
       audioEngine.ensureTrackChain(t.id);
       if (t.effects) audioEngine.updateEffects(t.id, t.effects);
@@ -1244,7 +1244,7 @@ const EditorPage = () => {
     if (audioEngine.isPlaying) {
       audioEngine.activeSources.forEach((entry, clipId) => {
         if (!validClipIds.has(clipId)) {
-          try { entry.source.stop(); } catch(e) {}
+          try { entry.source.stop(); } catch (e) { }
           audioEngine.activeSources.delete(clipId);
         }
       });
@@ -1285,7 +1285,7 @@ const EditorPage = () => {
       const playheadPixel = 240 + playheadTime * zoomLevel;
       const visibleRightEdge = container.scrollLeft + container.clientWidth;
       const visibleLeftEdge = container.scrollLeft + 240;
-      
+
       // If playhead leaves the visible track area, page scroll so it appears on the left
       if (playheadPixel > visibleRightEdge || playheadPixel < visibleLeftEdge) {
         container.scrollLeft = Math.max(0, playheadPixel - 240);
@@ -1348,7 +1348,7 @@ const EditorPage = () => {
       isMuted: false,
       isSoloed: false,
       effects: {
-        eq: { enabled: false, bands: [ { id: 1, type: 'highpass', freq: 80, gain: 0, q: 1 }, { id: 2, type: 'peaking', freq: 500, gain: 0, q: 1 }, { id: 3, type: 'peaking', freq: 2000, gain: 0, q: 1 }, { id: 4, type: 'highshelf', freq: 8000, gain: 0, q: 1 } ] },
+        eq: { enabled: false, bands: [{ id: 1, type: 'highpass', freq: 80, gain: 0, q: 1 }, { id: 2, type: 'peaking', freq: 500, gain: 0, q: 1 }, { id: 3, type: 'peaking', freq: 2000, gain: 0, q: 1 }, { id: 4, type: 'highshelf', freq: 8000, gain: 0, q: 1 }] },
         deEsser: { enabled: false, amount: 50 },
         compressor: { enabled: false, threshold: -15, ratio: 4 },
         reverb: { enabled: false, type: 'valhalla', mix: 20 },
@@ -1420,7 +1420,7 @@ const EditorPage = () => {
       // processedAudioUrl is a base64 data URI like "data:audio/wav;base64,..."
       const link = document.createElement('a');
       link.href = processedAudioUrl;
-      const timestamp = new Date().toISOString().slice(0,10);
+      const timestamp = new Date().toISOString().slice(0, 10);
       link.download = `AI_Mix_${timestamp}.wav`;
       document.body.appendChild(link);
       link.click();
@@ -1581,7 +1581,7 @@ const EditorPage = () => {
 
   const handleApplyAILevelsToMixer = () => {
     if (!sections || sections.length === 0) return;
-    
+
     // Calculate average AI gain adjustments across all sections
     let totalVocDb = 0;
     let totalInstDb = 0;
@@ -1824,12 +1824,12 @@ const EditorPage = () => {
 
             {/* Center: Transport & Ref Track */}
             <div className="flex items-center gap-4">
-              
+
               {/* Reference Track A/B */}
               <div className="flex items-center gap-1">
                 <input
                   type="file" accept="audio/*" className="hidden" id="ref-track-upload"
-                  onChange={(e) => { if(e.target.files[0]) { setReferenceAudioFile(e.target.files[0]); setIsReferenceActive(true); } }}
+                  onChange={(e) => { if (e.target.files[0]) { setReferenceAudioFile(e.target.files[0]); setIsReferenceActive(true); } }}
                 />
                 {!referenceAudioFile ? (
                   <button
@@ -1866,65 +1866,65 @@ const EditorPage = () => {
 
               {/* Main Transport */}
               <div className="flex items-center bg-[#111] border border-black rounded-[4px] p-0.5 shadow-inner">
-              <button
-                onClick={() => handleSeek(0)}
-                className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
-              </button>
-              
-              <button
-                onClick={handleRecordToggle}
-                className={`w-9 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors ${isRecording ? 'animate-pulse bg-red-900/40' : ''}`}
-                title={isRecording && measuredLatencyMs !== null ? `Recording — Latency: ${measuredLatencyMs}ms (auto) + ${manualLatencyMs}ms (manual)` : 'Record (Live)'}
-              >
-                <Circle className={`w-3.5 h-3.5 ${isRecording ? 'text-red-500 fill-red-500' : 'text-[#c0c0c0]'}`} />
-              </button>
-              
-              {/* Manual Latency Input */}
-              <div className="flex items-center mx-1 group" title="Manual Recording Latency Offset (ms) - Adjust this if your vocal records out of sync">
-                <span className="text-[9px] text-[#666] group-hover:text-[#aaa] mr-1">LATENCY:</span>
-                <input
-                  type="number"
-                  value={manualLatencyMs}
-                  onChange={(e) => setManualLatencyMs(parseInt(e.target.value) || 0)}
-                  className="w-12 h-5 bg-black border border-[#333] text-cyan-400 text-[10px] font-mono text-center rounded-[2px] outline-none focus:border-cyan-500"
-                />
-                <span className="text-[9px] text-[#666] ml-1">ms</span>
+                <button
+                  onClick={() => handleSeek(0)}
+                  className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+                </button>
+
+                <button
+                  onClick={handleRecordToggle}
+                  className={`w-9 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors ${isRecording ? 'animate-pulse bg-red-900/40' : ''}`}
+                  title={isRecording && measuredLatencyMs !== null ? `Recording — Latency: ${measuredLatencyMs}ms (auto) + ${manualLatencyMs}ms (manual)` : 'Record (Live)'}
+                >
+                  <Circle className={`w-3.5 h-3.5 ${isRecording ? 'text-red-500 fill-red-500' : 'text-[#c0c0c0]'}`} />
+                </button>
+
+                {/* Manual Latency Input */}
+                <div className="flex items-center mx-1 group" title="Manual Recording Latency Offset (ms) - Adjust this if your vocal records out of sync">
+                  <span className="text-[9px] text-[#666] group-hover:text-[#aaa] mr-1">LATENCY:</span>
+                  <input
+                    type="number"
+                    value={manualLatencyMs}
+                    onChange={(e) => setManualLatencyMs(parseInt(e.target.value) || 0)}
+                    className="w-12 h-5 bg-black border border-[#333] text-cyan-400 text-[10px] font-mono text-center rounded-[2px] outline-none focus:border-cyan-500"
+                  />
+                  <span className="text-[9px] text-[#666] ml-1">ms</span>
+                </div>
+
+                {isRecording && measuredLatencyMs !== null && (
+                  <span className="text-[9px] text-yellow-400 font-mono ml-0.5 whitespace-nowrap" title="Browser-reported input latency">
+                    +{measuredLatencyMs}ms
+                  </span>
+                )}
+
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="w-10 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors"
+                >
+                  {isPlaying ? <Pause className="w-4 h-4 text-cyan-400 fill-current" /> : <Play className="w-4 h-4 text-[#c0c0c0] fill-current" />}
+                </button>
+                <button
+                  onClick={handleStop}
+                  className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                </button>
+                <button
+                  onClick={() => setIsLooping(!isLooping)}
+                  className={`w-8 h-7 flex items-center justify-center rounded-[2px] transition-colors ${isLooping ? 'bg-cyan-600/40 text-cyan-400' : 'text-[#999] hover:text-white hover:bg-[#222]'}`}
+                >
+                  <Repeat className="w-4 h-4" />
+                </button>
+
+                {/* Timecode LED Display */}
+                <div className="ml-2 bg-black border border-[#222] px-3 h-7 flex items-center justify-center rounded-[2px] min-w-[80px]">
+                  <span id="timecode-display" className="font-mono text-cyan-400 text-xs tracking-wider font-bold">
+                    {formatTimecode(playheadTime)}
+                  </span>
+                </div>
               </div>
-
-              {isRecording && measuredLatencyMs !== null && (
-                <span className="text-[9px] text-yellow-400 font-mono ml-0.5 whitespace-nowrap" title="Browser-reported input latency">
-                  +{measuredLatencyMs}ms
-                </span>
-              )}
-
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="w-10 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors"
-              >
-                {isPlaying ? <Pause className="w-4 h-4 text-cyan-400 fill-current" /> : <Play className="w-4 h-4 text-[#c0c0c0] fill-current" />}
-              </button>
-              <button
-                onClick={handleStop}
-                className="w-8 h-7 flex items-center justify-center text-[#999] hover:text-white hover:bg-[#222] rounded-[2px]"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
-              </button>
-              <button
-                onClick={() => setIsLooping(!isLooping)}
-                className={`w-8 h-7 flex items-center justify-center rounded-[2px] transition-colors ${isLooping ? 'bg-cyan-600/40 text-cyan-400' : 'text-[#999] hover:text-white hover:bg-[#222]'}`}
-              >
-                <Repeat className="w-4 h-4" />
-              </button>
-
-              {/* Timecode LED Display */}
-              <div className="ml-2 bg-black border border-[#222] px-3 h-7 flex items-center justify-center rounded-[2px] min-w-[80px]">
-                <span id="timecode-display" className="font-mono text-cyan-400 text-xs tracking-wider font-bold">
-                  {formatTimecode(playheadTime)}
-                </span>
-              </div>
-            </div>
             </div>
 
             {/* Right: Zoom + Mix */}
@@ -2054,7 +2054,7 @@ const EditorPage = () => {
                             ))}
                           </div>
                         )}
-                        
+
                         {/* Chord Track overlay */}
                         {detectedChords.length > 0 && (
                           <div className="absolute left-0 right-0 bottom-4 h-3 pointer-events-none z-10 opacity-60">
@@ -2140,8 +2140,8 @@ const EditorPage = () => {
                           key={tab.id}
                           onClick={() => setLowerZoneTab(tab.id)}
                           className={`flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors border-b-2 ${lowerZoneTab === tab.id
-                              ? 'text-cyan-400 border-b-cyan-500 bg-black/20'
-                              : 'text-[#888] border-b-transparent hover:text-white hover:bg-white/5'
+                            ? 'text-cyan-400 border-b-cyan-500 bg-black/20'
+                            : 'text-[#888] border-b-transparent hover:text-white hover:bg-white/5'
                             }`}
                         >
                           {tab.icon}
@@ -2423,10 +2423,10 @@ const EditorPage = () => {
           </div>
         </div>
       </div>
-      
-      <ProjectsModal 
-        isOpen={isProjectsModalOpen} 
-        onClose={() => setIsProjectsModalOpen(false)} 
+
+      <ProjectsModal
+        isOpen={isProjectsModalOpen}
+        onClose={() => setIsProjectsModalOpen(false)}
       />
     </div>
   );
