@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { mixTracks } = require('./mixEngine');
 const { analyzePitch, correctPitch, correctTiming } = require('./pitchEngine');
+const { generateMixExplanation, generateChatResponse } = require('./geminiExplainer');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -61,11 +62,28 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
     // Convert mixed audio to base64 for transport
     const mixedBase64 = `data:audio/wav;base64,${result.mixedAudioBuffer.toString('base64')}`;
 
+    // Generate Explainable AI output via Gemini API (if configured)
+    const geminiResult = await generateMixExplanation({
+        globalSummary: result.globalSummary,
+        automationData: result.automationData,
+        originalExplanations: result.explanations
+    });
+    
+    let finalExplanations = result.explanations;
+    if (Array.isArray(geminiResult)) {
+        finalExplanations = geminiResult;
+    } else if (geminiResult && geminiResult.explanations) {
+        finalExplanations = geminiResult.explanations;
+        if (geminiResult.overallSummary) {
+            result.globalSummary.summary = geminiResult.overallSummary;
+        }
+    }
+
     return res.status(200).json({
       processed_audio_base64: mixedBase64,
       sections: result.sections,
       globalSummary: result.globalSummary,
-      explanations: result.explanations,
+      explanations: finalExplanations,
       automationData: result.automationData
     });
 }));
@@ -219,16 +237,52 @@ app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) =>
 
         const mixedBase64 = `data:audio/wav;base64,${mixResult.mixedAudioBuffer.toString('base64')}`;
 
+        // Generate Explainable AI output via Gemini API (if configured)
+        const geminiResult = await generateMixExplanation({
+            globalSummary: mixResult.globalSummary,
+            automationData: mixResult.automationData,
+            originalExplanations: mixResult.explanations
+        });
+        
+        let finalExplanations = mixResult.explanations;
+        if (Array.isArray(geminiResult)) {
+            finalExplanations = geminiResult;
+        } else if (geminiResult && geminiResult.explanations) {
+            finalExplanations = geminiResult.explanations;
+            if (geminiResult.overallSummary) {
+                mixResult.globalSummary.summary = geminiResult.overallSummary;
+            }
+        }
+
         return res.status(200).json({
           processed_audio_base64: mixedBase64,
           sections: mixResult.sections,
           globalSummary: mixResult.globalSummary,
-          explanations: mixResult.explanations,
+          explanations: finalExplanations,
           automationData: mixResult.automationData,
           alignmentDelay: delaySeconds
         });
     });
 }));
+
+// ============================================================
+// NEW: AI Chat Assistant Endpoint
+// ============================================================
+app.post('/api/chat', async (req, res) => {
+    try {
+        const { message, history, mixContext } = req.body;
+        
+        if (!message) {
+            return res.status(400).json({ error: 'Message is required' });
+        }
+
+        const reply = await generateChatResponse(message, history || [], mixContext);
+        return res.status(200).json({ reply });
+    } catch (error) {
+        console.error('[Chat] Error:', error);
+        return res.status(500).json({ error: 'Failed to generate chat response' });
+    }
+});
 
 // ============================================================
 // LEGACY: Single-track upload endpoint (kept for compatibility)

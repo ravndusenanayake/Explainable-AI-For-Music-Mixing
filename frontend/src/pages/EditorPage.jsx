@@ -10,7 +10,7 @@ import {
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
   PlaySquare, Repeat, Settings2, SlidersHorizontal, Sparkles,
   ChevronUp, ChevronDown, Maximize2, Minimize2, X,
-  Settings, Sliders, Wind, Zap, Disc, Circle, Wand2, Link2, Layers, Snowflake
+  Settings, Sliders, Wind, Zap, Disc, Circle, Wand2, Link2, Layers, Snowflake, MessageSquare
 } from 'lucide-react';
 import MixConsole from '../components/MixConsole';
 import MixExplainer from '../components/MixExplainer';
@@ -22,6 +22,7 @@ import PitchEditor from '../components/PitchEditor';
 import AudioAligner from '../components/AudioAligner';
 import ChannelStrip from '../components/ChannelStrip';
 import ProjectsModal from '../components/ProjectsModal';
+import AIChatAssistant from '../components/AIChatAssistant';
 import { Cloud } from 'lucide-react';
 import audioEngine from '../utils/realtimeEffects';
 
@@ -2135,6 +2136,7 @@ const EditorPage = () => {
                         { id: 'align', label: 'Audio Align', icon: <Link2 className="w-3 h-3" /> },
                         { id: 'dsp', label: 'DSP Controls', icon: <Sliders className="w-3 h-3" /> },
                         { id: 'vocal', label: 'Vocal Chain', icon: <Mic className="w-3 h-3" /> },
+                        { id: 'chat', label: 'AI Chat', icon: <MessageSquare className="w-3 h-3" /> },
                       ].map(tab => (
                         <button
                           key={tab.id}
@@ -2385,6 +2387,17 @@ const EditorPage = () => {
                     )}
                     {lowerZoneTab === 'align' && (
                       <AudioAligner />
+                    )}
+
+                    {/* AI CHAT TAB */}
+                    {lowerZoneTab === 'chat' && (
+                      <div className="p-4 h-full">
+                        <AIChatAssistant 
+                            globalSummary={globalSummary} 
+                            explanations={explanations} 
+                            automationData={automationData} 
+                        />
+                      </div>
                     )}
                   </div>
                 </div>
