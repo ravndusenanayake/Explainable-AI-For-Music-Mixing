@@ -9,10 +9,10 @@ async function generateMixExplanation(mixContext) {
         console.warn("[GeminiExplainer] No GEMINI_API_KEY found. Returning original explanations.");
         return mixContext.originalExplanations;
     }
-    
+
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
         const prompt = `
 You are an expert audio engineer and Explainable AI for a professional music mixing system.
 Based on the following mixing statistics, track data, and basic automated decisions made by the system, generate a comprehensive set of professional explanations for the user.
@@ -41,7 +41,7 @@ ${JSON.stringify(mixContext, null, 2)}
         console.log("[GeminiExplainer] Requesting explanations from Gemini Pro...");
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
-        
+
         // Clean up markdown formatting if Gemini returns ```json ... ```
         const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
         const jsonResponse = JSON.parse(cleanedText);
@@ -59,8 +59,8 @@ async function generateChatResponse(message, history, mixContext) {
     }
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
         let systemInstruction = `You are a professional audio mixing engineer and an AI assistant for a music mixing web application.
 The user is asking you questions about their mix, audio engineering concepts, or how to fix issues in their track.
 Answer concisely, professionally, and in a friendly manner.

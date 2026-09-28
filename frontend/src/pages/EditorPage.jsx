@@ -680,7 +680,7 @@ const EditorPage = () => {
   const {
     mediaPool, addMediaToPool, removeMediaFromPool, tracks, setTracks, updateTrackEffect,
     handleMix, isLoading, loadingStage, automationData,
-    processedAudioUrl, sections, globalSummary, simpleExplanations,
+    processedAudioUrl, sections, globalSummary, simpleExplanations, explanations,
     eqSettings, setEqSettings, handleStemSplit
   } = useAudioContext();
 
