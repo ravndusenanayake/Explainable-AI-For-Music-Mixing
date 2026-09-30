@@ -10,7 +10,7 @@ import {
   ZoomIn, ZoomOut, Lock, Eye, EyeOff, Mic, Guitar, Drum,
   PlaySquare, Repeat, Settings2, SlidersHorizontal, Sparkles,
   ChevronUp, ChevronDown, Maximize2, Minimize2, X,
-  Settings, Sliders, Wind, Zap, Disc, Circle, Wand2, Link2, Layers, Snowflake, MessageSquare
+  Settings, Sliders, Wind, Zap, Disc, Circle, Wand2, Link2, Layers, Snowflake, MessageSquare, Activity
 } from 'lucide-react';
 import MixConsole from '../components/MixConsole';
 import MixExplainer from '../components/MixExplainer';
@@ -681,7 +681,7 @@ const EditorPage = () => {
     mediaPool, addMediaToPool, removeMediaFromPool, tracks, setTracks, updateTrackEffect,
     handleMix, handleDenoise, isLoading, loadingStage, automationData,
     processedAudioUrl, sections, globalSummary, simpleExplanations, explanations,
-    eqSettings, setEqSettings, handleStemSplit
+    eqSettings, setEqSettings, handleStemSplit, handlePitchCorrection
   } = useAudioContext();
 
   const navigate = useNavigate();
@@ -2003,10 +2003,10 @@ const EditorPage = () => {
                   setLowerZoneOpen(true);
                   setLowerZoneTab('xai');
                 }}
-                className="ml-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(6,182,212,0.5)] transition-all flex items-center gap-2 border border-cyan-400"
+                className="ml-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(6,182,212,0.5)] transition-all flex items-center gap-1.5 border border-cyan-400"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                GENERATE AI MIX
+                AI MIX
               </button>
 
               <button
@@ -2060,11 +2060,72 @@ const EditorPage = () => {
                   }
                 }}
                 disabled={isLoading}
-                className="ml-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(16,185,129,0.4)] transition-all flex items-center gap-2 border border-emerald-400 disabled:border-gray-600"
+                className="ml-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-[10px] font-bold px-2.5 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(16,185,129,0.4)] transition-all flex items-center gap-1.5 border border-emerald-400 disabled:border-gray-600"
                 title="AI Vocal Purifier — Remove background noise from vocal clips"
               >
                 <Wind className="w-3.5 h-3.5" />
-                AI CLEAN NOISE
+                DENOISE
+              </button>
+
+              <button
+                onClick={async () => {
+                  const vocalMediaIds = new Set();
+                  tracks.forEach(t => {
+                    if (t.type === 'vocal' || t.name?.toLowerCase().includes('vocal')) {
+                      t.clips.forEach(c => {
+                        vocalMediaIds.add(c.mediaId);
+                      });
+                    }
+                  });
+
+                  if (vocalMediaIds.size === 0) {
+                    alert('Please add a vocal clip to the timeline to perform Deep Isolation.');
+                    return;
+                  }
+
+                  for (const mediaId of vocalMediaIds) {
+                    await handleStemSplit(mediaId);
+                  }
+                  alert('Deep Isolation Complete! Pure vocals and instrumental stems have been added to the Media Pool.');
+                }}
+                disabled={isLoading}
+                className="ml-1 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-[10px] font-bold px-2.5 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(147,51,234,0.4)] transition-all flex items-center gap-1.5 border border-purple-400 disabled:border-gray-600"
+                title="Demucs AI — Isolate pure vocals and remove complex noises (like table taps, echoes)"
+              >
+                <Scissors className="w-3.5 h-3.5" />
+                ISOLATE
+              </button>
+
+              <button
+                onClick={async () => {
+                  const vocalMediaIds = new Set();
+                  tracks.forEach(t => {
+                    if (t.type === 'vocal' || t.name?.toLowerCase().includes('vocal')) {
+                      t.clips.forEach(c => {
+                        vocalMediaIds.add(c.mediaId);
+                      });
+                    }
+                  });
+
+                  if (vocalMediaIds.size === 0) {
+                    alert('Please add a vocal clip to the timeline to apply Pitch Correction.');
+                    return;
+                  }
+
+                  let lastResult = null;
+                  for (const mediaId of vocalMediaIds) {
+                    lastResult = await handlePitchCorrection(mediaId, 'C', 'major', true);
+                  }
+                  if (lastResult) {
+                     alert('AI Pitch Correction applied successfully! (See explanations in lower zone)');
+                  }
+                }}
+                disabled={isLoading}
+                className="ml-1 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-[10px] font-bold px-2.5 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(217,119,6,0.4)] transition-all flex items-center gap-1.5 border border-amber-400 disabled:border-gray-600"
+                title="Auto-Tune AI — Snap vocals perfectly to key"
+              >
+                <Activity className="w-3.5 h-3.5" />
+                AUTO-TUNE
               </button>
 
               <button

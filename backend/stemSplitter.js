@@ -37,8 +37,9 @@ async function splitStems(inputPath, outputDir) {
  * Check if Python demucs is available
  */
 function isDemucsAvailable() {
+  const pythonPath = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
   return new Promise((resolve) => {
-    const proc = spawn('python', ['-c', 'import demucs; print("ok")']);
+    const proc = spawn(pythonPath, ['-c', 'import demucs; print("ok")']);
     let out = '';
     proc.stdout.on('data', (d) => out += d.toString());
     proc.on('close', (code) => resolve(code === 0 && out.includes('ok')));
@@ -54,8 +55,10 @@ function isDemucsAvailable() {
 async function splitWithDemucs(inputPath, outputDir, baseName) {
   console.log('[StemSplitter] Using Demucs AI model for high-quality separation...');
   
+  const pythonPath = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
+  
   return new Promise((resolve, reject) => {
-    const proc = spawn('python', [
+    const proc = spawn(pythonPath, [
       '-m', 'demucs',
       '--two-stems=vocals',   // Split into vocals + no_vocals
       '-n', 'htdemucs',       // Use the hybrid transformer model
