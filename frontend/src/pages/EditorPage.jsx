@@ -2358,6 +2358,24 @@ const EditorPage = () => {
                               <div className="text-[9px] text-gray-500 mt-1">Parametric equalizer for tone shaping</div>
                             </div>
 
+                            {/* Noise Gate */}
+                            <div className="bg-[#1a1a1a] border border-black rounded-sm p-2.5">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-gray-300 flex items-center gap-1"><Mic className="w-3 h-3 text-emerald-400" /> Noise Gate</span>
+                                <button onClick={() => { pushUndo(); update('gate', { enabled: !effects.gate?.enabled }); }} className={`w-7 h-4 rounded-full relative transition-colors ${effects.gate?.enabled ? 'bg-cyan-500' : 'bg-gray-600'}`}>
+                                  <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all ${effects.gate?.enabled ? 'left-3.5' : 'left-0.5'}`} />
+                                </button>
+                              </div>
+                              {effects.gate?.enabled ? (
+                                <div>
+                                  <div className="flex justify-between text-[9px] text-gray-400 font-mono"><span>Threshold</span><span>{effects.gate.threshold}dB</span></div>
+                                  <input type="range" min={-80} max={0} step={1} value={effects.gate.threshold} onChange={(e) => { pushUndo(); update('gate', { threshold: parseFloat(e.target.value) }); }} className="w-full h-1 bg-black rounded appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-[#888] [&::-webkit-slider-thumb]:rounded-[1px] cursor-pointer" />
+                                </div>
+                              ) : (
+                                <div className="text-[9px] text-gray-500 mt-1">Mutes silent/flat areas</div>
+                              )}
+                            </div>
+
                             {/* De-Esser */}
                             <div className="bg-[#1a1a1a] border border-black rounded-sm p-2.5">
                               <div className="flex items-center justify-between mb-2">
