@@ -679,7 +679,7 @@ const TimelineRuler = ({ zoomLevel, playheadTime, onClickRuler, timelineWidth, i
 const EditorPage = () => {
   const {
     mediaPool, addMediaToPool, removeMediaFromPool, tracks, setTracks, updateTrackEffect,
-    handleMix, isLoading, loadingStage, automationData,
+    handleMix, handleDenoise, isLoading, loadingStage, automationData,
     processedAudioUrl, sections, globalSummary, simpleExplanations, explanations,
     eqSettings, setEqSettings, handleStemSplit
   } = useAudioContext();
@@ -692,6 +692,10 @@ const EditorPage = () => {
 
   // DAW View State
   const [zoomLevel, setZoomLevel] = useState(50);
+
+  // AI Denoise State
+  const [denoiseResult, setDenoiseResult] = useState(null);
+  const [showDenoiseModal, setShowDenoiseModal] = useState(false);
 
   // Handle Ctrl + Scroll for horizontal zooming, keeping mouse center
   useEffect(() => {
@@ -1621,9 +1625,11 @@ const EditorPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center -mt-20">
         <div className="text-center">
-          <div className="w-24 h-24 border-[4px] border-white/5 border-t-blue-500 rounded-full animate-spin mx-auto mb-6" />
-          <h3 className="text-xl font-bold text-white mb-2">AI is Mixing Your Project...</h3>
-          <p className="text-gray-400">{loadingStage}</p>
+          <div className="w-24 h-24 border-[4px] border-white/5 border-t-cyan-500 rounded-full animate-spin mx-auto mb-6 shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
+          <h3 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-2">
+            Crafting Your Sound...
+          </h3>
+          <p className="text-gray-400 font-medium">{loadingStage}</p>
         </div>
       </div>
     );
@@ -2001,6 +2007,64 @@ const EditorPage = () => {
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 GENERATE AI MIX
+              </button>
+
+              <button
+                onClick={async () => {
+                  // Find all vocal clips in the timeline and denoise them
+                  const vocalMediaIds = new Set();
+                  tracks.forEach(t => {
+                    if (t.type === 'vocal' || t.name?.toLowerCase().includes('vocal')) {
+                      t.clips.forEach(c => {
+                        const media = mediaPool.find(m => m.id === c.mediaId);
+                        if (media && !media.isDenoise) {
+                          vocalMediaIds.add(c.mediaId);
+                        }
+                      });
+                    }
+                  });
+
+                  if (vocalMediaIds.size === 0) {
+                    // If no vocal clips found, try denoising any clip in vocal tracks
+                    const allMediaIds = new Set();
+                    tracks.forEach(t => {
+                      t.clips.forEach(c => {
+                        const media = mediaPool.find(m => m.id === c.mediaId);
+                        if (media && !media.isDenoise) {
+                          allMediaIds.add(c.mediaId);
+                        }
+                      });
+                    });
+                    if (allMediaIds.size === 0) {
+                      alert('No audio clips to clean! Please add clips to the timeline first.');
+                      return;
+                    }
+                    // Denoise the first available clip
+                    const firstId = Array.from(allMediaIds)[0];
+                    const result = await handleDenoise(firstId);
+                    if (result) {
+                      setDenoiseResult(result);
+                      setShowDenoiseModal(true);
+                    }
+                    return;
+                  }
+
+                  // Denoise each vocal clip
+                  let lastResult = null;
+                  for (const mediaId of vocalMediaIds) {
+                    lastResult = await handleDenoise(mediaId);
+                  }
+                  if (lastResult) {
+                    setDenoiseResult(lastResult);
+                    setShowDenoiseModal(true);
+                  }
+                }}
+                disabled={isLoading}
+                className="ml-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(16,185,129,0.4)] transition-all flex items-center gap-2 border border-emerald-400 disabled:border-gray-600"
+                title="AI Vocal Purifier — Remove background noise from vocal clips"
+              >
+                <Wind className="w-3.5 h-3.5" />
+                AI CLEAN NOISE
               </button>
 
               <button
@@ -2441,6 +2505,116 @@ const EditorPage = () => {
         isOpen={isProjectsModalOpen}
         onClose={() => setIsProjectsModalOpen(false)}
       />
+
+      {/* AI Denoise Results Modal */}
+      <AnimatePresence>
+        {showDenoiseModal && denoiseResult && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setShowDenoiseModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 25 }}
+              className="bg-[#1a1c23] rounded-2xl border border-emerald-500/30 shadow-[0_0_40px_rgba(16,185,129,0.15)] w-full max-w-lg overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-emerald-600/20 to-teal-600/20 border-b border-emerald-500/20 px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30">
+                    <Wind className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">AI Vocal Purifier</h3>
+                    <p className="text-xs text-emerald-300/70">Background noise removed successfully</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDenoiseModal(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Metrics */}
+              <div className="px-6 py-5 space-y-4">
+                {/* Big Stat */}
+                <div className="bg-emerald-500/10 rounded-xl border border-emerald-500/20 p-5 text-center">
+                  <div className="text-5xl font-black text-emerald-400">
+                    {denoiseResult.metrics?.noise_reduction_percent || 0}%
+                  </div>
+                  <div className="text-sm text-emerald-300/80 mt-1">Background Noise Removed</div>
+                </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-white/5 rounded-lg p-3 text-center border border-white/5">
+                    <div className="text-xl font-bold text-cyan-400">+{denoiseResult.metrics?.snr_improvement_db || 0}dB</div>
+                    <div className="text-[10px] text-gray-400 mt-1">SNR Improvement</div>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-3 text-center border border-white/5">
+                    <div className="text-xl font-bold text-violet-400">{denoiseResult.processing_time || '0'}s</div>
+                    <div className="text-[10px] text-gray-400 mt-1">Processing Time</div>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-3 text-center border border-white/5">
+                    <div className="text-xl font-bold text-amber-400">{denoiseResult.metrics?.duration_seconds || 0}s</div>
+                    <div className="text-[10px] text-gray-400 mt-1">Audio Duration</div>
+                  </div>
+                </div>
+
+                {/* AI Explanations */}
+                {denoiseResult.explanations && denoiseResult.explanations.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">AI Explanation</h4>
+                    {denoiseResult.explanations.map((exp, idx) => (
+                      <div key={idx} className="bg-black/30 rounded-lg p-3 border border-white/5">
+                        <div className="flex items-start gap-2">
+                          <Sparkles className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-white">{exp.action}</p>
+                            <p className="text-xs text-gray-400 mt-1">{exp.reason}</p>
+                            <p className="text-xs text-emerald-300/60 mt-1 italic">💡 {exp.tip}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={async () => {
+                      setShowDenoiseModal(false);
+                      setIsPlaying(false);
+                      await handleMix();
+                      setLowerZoneOpen(true);
+                      setLowerZoneTab('xai');
+                    }}
+                    className="flex-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-sm font-bold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Mix with Cleaned Audio
+                  </button>
+                  <button
+                    onClick={() => setShowDenoiseModal(false)}
+                    className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-medium rounded-lg transition-all border border-white/10"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

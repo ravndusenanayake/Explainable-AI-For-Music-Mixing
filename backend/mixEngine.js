@@ -335,12 +335,60 @@ function applySaturation(buffer, drive, sampleRate) {
 }
 
 /**
+ * Apply Noise Gate to a buffer.
+ * Mutes or attenuates signals below a threshold to remove background noise.
+ */
+function applyNoiseGate(buffer, thresholdDb, reductionDb, sampleRate) {
+  if (thresholdDb <= -100) return;
+  console.log(`[DSP] Applying Noise Gate: ${thresholdDb}dB threshold`);
+  
+  const threshold = Math.pow(10, thresholdDb / 20);
+  const minGain = Math.pow(10, reductionDb / 20);
+  const attackCoeff = Math.exp(-1 / (sampleRate * 0.01)); // 10ms attack (when opening gate)
+  const releaseCoeff = Math.exp(-1 / (sampleRate * 0.1)); // 100ms release (when closing gate)
+  
+  let envelope = 0;
+  let currentGain = 1;
+
+  for (let i = 0; i < buffer.length; i++) {
+    const inputAbs = Math.abs(buffer[i]);
+    
+    // RMS or Peak envelope
+    if (inputAbs > envelope) {
+      envelope = inputAbs; // instant attack for detection
+    } else {
+      envelope = envelope * 0.999 + inputAbs * 0.001;
+    }
+    
+    let targetGain = envelope < threshold ? minGain : 1;
+    
+    // Smooth the gain itself to prevent clicks
+    if (targetGain > currentGain) {
+      currentGain = attackCoeff * currentGain + (1 - attackCoeff) * targetGain;
+    } else {
+      currentGain = releaseCoeff * currentGain + (1 - releaseCoeff) * targetGain;
+    }
+    
+    buffer[i] = buffer[i] * currentGain;
+  }
+}
+
+/**
  * Apply the full Channel Strip processing chain to a buffer.
- * Signal flow: Input → EQ → Compressor → De-Esser → Saturation → Output
+ * Signal flow: Input → Gate → EQ → Compressor → De-Esser → Saturation → Output
  */
 function applyChannelStrip(buffer, effects, sampleRate) {
   if (!effects) return [];
   const explanations = [];
+  
+  if (effects.gate?.enabled) {
+    applyNoiseGate(buffer, effects.gate.threshold || -40, -40, sampleRate);
+    explanations.push({
+      action: `Channel Strip Noise Gate: ${effects.gate.threshold}dB threshold`,
+      reason: `Muted background noise below ${effects.gate.threshold}dB.`,
+      tip: 'A Noise Gate keeps tracks clean when no one is singing.'
+    });
+  }
   
   if (effects.eq?.enabled && effects.eq?.bands) {
     applyParametricEQ(buffer, effects.eq.bands, sampleRate);

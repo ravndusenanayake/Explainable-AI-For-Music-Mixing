@@ -21,6 +21,7 @@ export const AudioProvider = ({ children }) => {
   const [mediaPool, setMediaPool] = useState([]);
 
   const defaultEffects = {
+    gate: { enabled: true, threshold: -40 },
     eq: { 
       enabled: false, 
       bands: [
@@ -262,6 +263,78 @@ export const AudioProvider = ({ children }) => {
     }
   };
 
+  /**
+   * AI Vocal Purifier: Denoise a single media clip using Python noisereduce
+   * Replaces the clip in the media pool with the cleaned version
+   */
+  const handleDenoise = async (mediaId) => {
+    const media = mediaPool.find(m => m.id === mediaId);
+    if (!media) {
+      setError("Media not found in pool.");
+      return null;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setLoadingStage('🧹 AI Vocal Purifier is cleaning your audio...');
+
+    const formData = new FormData();
+    formData.append('file', media.file, media.name);
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/denoise', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          if (percent < 100) {
+            setLoadingStage(`Uploading audio for AI cleaning... ${percent}%`);
+          } else {
+            setLoadingStage('🤖 AI is analyzing noise patterns and cleaning... This may take a moment.');
+          }
+        },
+      });
+
+      const { data } = response;
+
+      if (data.success && data.cleaned_audio_base64) {
+        // Convert base64 back to a File object
+        const base64Data = data.cleaned_audio_base64.split(',')[1];
+        const byteArray = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+        const cleanedBlob = new Blob([byteArray], { type: 'audio/wav' });
+        const cleanedFile = new File([cleanedBlob], `cleaned_${media.name}`, { type: 'audio/wav' });
+        const cleanedUrl = URL.createObjectURL(cleanedFile);
+
+        // Replace the media in the pool with the cleaned version
+        setMediaPool(prev => prev.map(m => {
+          if (m.id === mediaId) {
+            return { ...m, file: cleanedFile, url: cleanedUrl, name: `cleaned_${m.name}`, isDenoise: true };
+          }
+          return m;
+        }));
+
+        setLoadingStage('');
+        return {
+          success: true,
+          metrics: data.metrics,
+          explanations: data.explanations,
+          processing_time: data.processing_time
+        };
+      } else {
+        throw new Error('No cleaned audio returned from server');
+      }
+
+    } catch (err) {
+      console.error('[Denoise Error]', err);
+      setError(err.response?.data?.error || err.message || 'AI Denoise failed.');
+      return null;
+    } finally {
+      setIsLoading(false);
+      setLoadingStage('');
+    }
+  };
+
   const dbToGain = (db) => {
     if (db <= -60) return 0;
     return Math.pow(10, db / 20);
@@ -439,6 +512,7 @@ export const AudioProvider = ({ children }) => {
     handleMix,
     handleAutoMix,
     handleVoiceConversion,
+    handleDenoise,
     resetContext,
     
     // UI State

@@ -128,6 +128,83 @@ app.post('/api/convert-voice', upload.single('file'), asyncHandler(async (req, r
 }));
 
 // ============================================================
+// NEW: AI Vocal Purifier / Denoise Endpoint
+// ============================================================
+const { execSync } = require('child_process');
+
+app.post('/api/denoise', upload.single('file'), asyncHandler(async (req, res) => {
+    console.log('\n--- New AI Denoise Request ---');
+    
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+    }
+
+    console.log(`[Denoise] Processing: ${req.file.originalname} (${(req.file.size / 1024).toFixed(0)}KB)`);
+
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+    
+    const timestamp = Date.now();
+    const inputPath = path.join(tempDir, `denoise_in_${timestamp}.wav`);
+    const outputPath = path.join(tempDir, `denoise_out_${timestamp}.wav`);
+    
+    fs.writeFileSync(inputPath, req.file.buffer);
+
+    try {
+        const startTime = Date.now();
+        
+        // Run the Python AI denoiser
+        const pythonPath = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
+        const denoiserScript = path.join(__dirname, 'denoiser.py');
+        
+        const output = execSync(
+            `"${pythonPath}" "${denoiserScript}" "${inputPath}" "${outputPath}"`,
+            { encoding: 'utf-8', timeout: 120000 } // 2 minute timeout
+        );
+        
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`[Denoise] AI Processing complete in ${elapsed}s`);
+        
+        let denoiseResult;
+        try {
+            denoiseResult = JSON.parse(output.trim());
+        } catch (e) {
+            console.error('[Denoise] Failed to parse Python output:', output);
+            throw new Error('Denoiser returned invalid output');
+        }
+        
+        if (!denoiseResult.success) {
+            throw new Error(denoiseResult.error || 'Denoiser failed');
+        }
+        
+        // Read the cleaned audio file
+        const cleanedBuffer = fs.readFileSync(outputPath);
+        const cleanedBase64 = `data:audio/wav;base64,${cleanedBuffer.toString('base64')}`;
+        
+        // Cleanup temp files
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        
+        console.log(`[Denoise] ✅ Success! Removed ${denoiseResult.metrics.noise_reduction_percent}% noise, SNR +${denoiseResult.metrics.snr_improvement_db}dB`);
+        
+        return res.status(200).json({
+            success: true,
+            cleaned_audio_base64: cleanedBase64,
+            metrics: denoiseResult.metrics,
+            explanations: denoiseResult.explanations,
+            processing_time: elapsed
+        });
+        
+    } catch (err) {
+        console.error(`[Denoise] Error: ${err.message}`);
+        // Cleanup temp files on error
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        return res.status(500).json({ error: `AI Denoise failed: ${err.message}` });
+    }
+}));
+
+// ============================================================
 // NEW: 1-Click Auto Mix Endpoint
 // ============================================================
 app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) => {
