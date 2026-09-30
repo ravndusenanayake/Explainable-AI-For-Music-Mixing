@@ -681,7 +681,7 @@ const EditorPage = () => {
     mediaPool, addMediaToPool, removeMediaFromPool, tracks, setTracks, updateTrackEffect,
     handleMix, handleDenoise, isLoading, loadingStage, automationData,
     processedAudioUrl, sections, globalSummary, simpleExplanations, explanations,
-    eqSettings, setEqSettings, handleStemSplit, handlePitchCorrection
+    eqSettings, setEqSettings, handleStemSplit, handlePitchCorrection, handleDeTap
   } = useAudioContext();
 
   const navigate = useNavigate();
@@ -2094,6 +2094,35 @@ const EditorPage = () => {
               >
                 <Scissors className="w-3.5 h-3.5" />
                 ISOLATE
+              </button>
+
+              <button
+                onClick={async () => {
+                  const vocalMediaIds = new Set();
+                  tracks.forEach(t => {
+                    if (t.type === 'vocal' || t.name?.toLowerCase().includes('vocal')) {
+                      t.clips.forEach(c => {
+                        vocalMediaIds.add(c.mediaId);
+                      });
+                    }
+                  });
+
+                  if (vocalMediaIds.size === 0) {
+                    alert('Please add a vocal clip to the timeline to perform custom De-Tapping.');
+                    return;
+                  }
+
+                  for (const mediaId of vocalMediaIds) {
+                    await handleDeTap(mediaId);
+                  }
+                  alert('Custom AI De-Tap Complete! Taps removed and saved to Media Pool.');
+                }}
+                disabled={isLoading}
+                className="ml-1 bg-pink-600 hover:bg-pink-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-[10px] font-bold px-2.5 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(219,39,119,0.4)] transition-all flex items-center gap-1.5 border border-pink-400 disabled:border-gray-600"
+                title="Custom ML Model — Detect and remove table taps using MFCC classification"
+              >
+                <Wand2 className="w-3.5 h-3.5" />
+                DE-TAP
               </button>
 
               <button

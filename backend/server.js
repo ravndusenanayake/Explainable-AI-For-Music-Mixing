@@ -205,6 +205,70 @@ app.post('/api/denoise', upload.single('file'), asyncHandler(async (req, res) =>
 }));
 
 // ============================================================
+// NEW: AI De-Tap Endpoint (Custom Trained Model)
+// ============================================================
+app.post('/api/de-tap', upload.single('file'), asyncHandler(async (req, res) => {
+    console.log('\n--- New AI De-Tap Request ---');
+    
+    if (!req.file) {
+        return res.status(400).json({ error: 'No audio file provided.' });
+    }
+
+    console.log(`[De-Tap] Processing: ${req.file.originalname} (${(req.file.size / 1024).toFixed(0)}KB)`);
+
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+    
+    const timestamp = Date.now();
+    const inputPath = path.join(tempDir, `detap_in_${timestamp}.wav`);
+    const outputPath = path.join(tempDir, `detap_out_${timestamp}.wav`);
+    
+    fs.writeFileSync(inputPath, req.file.buffer);
+
+    try {
+        const startTime = Date.now();
+        
+        // Run the Python Custom De-Tap model
+        const pythonPath = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
+        const detapScript = path.join(__dirname, 'remove_taps.py');
+        
+        const output = execSync(
+            `"${pythonPath}" "${detapScript}" "${inputPath}" "${outputPath}"`,
+            { encoding: 'utf-8', timeout: 120000 }
+        );
+        
+        console.log(output);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`[De-Tap] AI Processing complete in ${elapsed}s`);
+        
+        // Read the cleaned audio file
+        const cleanedBuffer = fs.readFileSync(outputPath);
+        const cleanedBase64 = `data:audio/wav;base64,${cleanedBuffer.toString('base64')}`;
+        
+        // Cleanup temp files
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        
+        return res.status(200).json({
+            success: true,
+            cleaned_audio_base64: cleanedBase64,
+            explanations: [
+                "Custom Random Forest model used.",
+                "Analyzed MFCC features per 20ms frame.",
+                "Detected and ducked non-harmonic transient taps."
+            ],
+            processing_time: elapsed
+        });
+        
+    } catch (err) {
+        console.error(`[De-Tap] Error: ${err.message}`);
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        return res.status(500).json({ error: `AI De-Tap failed: ${err.message}` });
+    }
+}));
+
+// ============================================================
 // NEW: 1-Click Auto Mix Endpoint
 // ============================================================
 app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) => {

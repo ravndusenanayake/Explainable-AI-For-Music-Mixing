@@ -579,6 +579,61 @@ export const AudioProvider = ({ children }) => {
   };
 
   // ==========================================
+  // NEW: Custom AI De-Tap (Research Feature)
+  // ==========================================
+  const handleDeTap = async (mediaId) => {
+    const media = mediaPool.find(m => m.id === mediaId);
+    if (!media) return null;
+
+    setIsLoading(true);
+    setError(null);
+    setLoadingStage('Detecting and removing table taps (Custom Model)...');
+
+    const formData = new FormData();
+    formData.append('file', media.file, media.name);
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/de-tap', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          if (percent < 100) {
+            setLoadingStage(`Uploading for De-Tap... ${percent}%`);
+          } else {
+            setLoadingStage('Running custom Random Forest model...');
+          }
+        },
+      });
+
+      const { data } = response;
+
+      if (data.cleaned_audio_base64) {
+        const res = await fetch(data.cleaned_audio_base64);
+        const blob = await res.blob();
+        const baseName = media.name.replace(/\.[^/.]+$/, "");
+        const newFileName = `${baseName} (De-Tapped).wav`;
+        const newFile = new File([blob], newFileName, { type: 'audio/wav' });
+        
+        // Save explanation for XAI tab
+        if (data.explanations) {
+           setExplanations(prev => [...prev, ...data.explanations]);
+        }
+        
+        const newMedia = addMediaToPool(newFile);
+        return newMedia;
+      }
+      return data;
+    } catch (err) {
+      console.error(err);
+      setError('AI De-Tap failed: ' + (err.response?.data?.error || err.message));
+      return null;
+    } finally {
+      setIsLoading(false);
+      setLoadingStage('');
+    }
+  };
+
+  // ==========================================
   // NEW: Audio Alignment
   // ==========================================
   const handleAlignment = async (referenceTrackId, targetTrackIds) => {
@@ -951,6 +1006,7 @@ export const AudioProvider = ({ children }) => {
   value.saveProjectToSupabase = saveProjectToSupabase;
   value.loadProjectFromSupabase = loadProjectFromSupabase;
   value.handleStemSplit = handleStemSplit;
+  value.handleDeTap = handleDeTap;
 
   if (!isProjectLoaded) {
     return (
