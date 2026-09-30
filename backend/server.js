@@ -7,6 +7,9 @@ const path = require('path');
 const { mixTracks } = require('./mixEngine');
 const { analyzePitch, correctPitch, correctTiming } = require('./pitchEngine');
 const { generateMixExplanation, generateChatResponse } = require('./geminiExplainer');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -220,13 +223,23 @@ app.post('/api/de-tap', upload.single('file'), asyncHandler(async (req, res) => 
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
     
     const timestamp = Date.now();
+    const rawPath = path.join(tempDir, `detap_raw_${timestamp}`);
     const inputPath = path.join(tempDir, `detap_in_${timestamp}.wav`);
     const outputPath = path.join(tempDir, `detap_out_${timestamp}.wav`);
     
-    fs.writeFileSync(inputPath, req.file.buffer);
+    fs.writeFileSync(rawPath, req.file.buffer);
 
     try {
         const startTime = Date.now();
+        
+        // Convert to WAV first to handle MP3/M4A uploads correctly for Python
+        await new Promise((resolve, reject) => {
+            ffmpeg(rawPath)
+                .toFormat('wav')
+                .on('end', resolve)
+                .on('error', reject)
+                .save(inputPath);
+        });
         
         // Run the Python Custom De-Tap model
         const pythonPath = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
