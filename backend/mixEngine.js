@@ -619,6 +619,11 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
           tip: 'No changes needed.'
         });
       }
+      
+      // Auto-add spatial effects for Chorus (Epic feel)
+      decisions.vocalReverbMix = 0.25; // 25% reverb
+      decisions.vocalDelayMix = 0.15; // 15% delay
+      decisions.actions.push('Added lush Reverb (25%) and Delay (15%) for an epic chorus');
     } else if (sectionType === 'Verse') {
       // Verse: vocal should be clearly above instrumental
       if (balanceDb < 0) {
@@ -640,6 +645,11 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
           tip: 'No changes needed.'
         });
       }
+      
+      // Auto-add subtle spatial effects for Verse (Intimate feel)
+      decisions.vocalReverbMix = 0.12; // 12% reverb
+      decisions.vocalDelayMix = 0.05; // 5% delay
+      decisions.actions.push('Added subtle Reverb (12%) to sit in the mix');
     } else if (sectionType === 'Bridge') {
       // Bridge: usually a transition, keep both moderate
       const targetBalance = 2; // vocal slightly above
@@ -654,6 +664,11 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
           tip: 'Bridges need contrast. Keep vocals slightly softer here.'
         });
       }
+      
+      // Auto-add effects for Bridge (Transition feel)
+      decisions.vocalReverbMix = 0.20; 
+      decisions.vocalDelayMix = 0.10; 
+      decisions.actions.push('Added moderate Reverb (20%) and Delay (10%) for transition');
     } else if (sectionType === 'Instrumental Break') {
       decisions.vocalGainDb = -60; // effectively mute
       decisions.actions.push('Muted vocal for instrumental break');
@@ -672,10 +687,13 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
     });
   } else if (!vocal.isSilent && instrumental.isSilent) {
     decisions.actions.push('A cappella section — vocal only');
+    decisions.vocalReverbMix = 0.30; // 30% reverb to fill empty space
+    decisions.vocalDelayMix = 0.20; // 20% delay
+    decisions.actions.push('Added heavy Reverb (30%) and Delay (20%) to fill silence');
     decisions.explanations.push({
-      action: 'Vocal Only',
+      action: 'Vocal Only (A cappella)',
       reason: 'No instrumental detected.',
-      tip: 'Add subtle reverb to avoid dryness.'
+      tip: 'Added heavy spatial effects to avoid vocal dryness.'
     });
   }
 
