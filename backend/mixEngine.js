@@ -1023,6 +1023,10 @@ async function mixTracks(files, timelineState) {
   let avgDelayMix = 0;
   let dspSectionsCount = 0;
   
+  // Check if any vocal track already has Reverb or Delay enabled manually by the user
+  const userReverbEnabled = timelineState.tracks.some(t => t.type === 'vocal' && t.effects?.reverb?.enabled);
+  const userDelayEnabled = timelineState.tracks.some(t => t.type === 'vocal' && t.effects?.delay?.enabled);
+  
   sections.forEach(s => {
     if (s.mixing.vocalReverbMix !== undefined) {
       avgReverbMix += s.mixing.vocalReverbMix;
@@ -1035,16 +1039,17 @@ async function mixTracks(files, timelineState) {
     avgReverbMix /= dspSectionsCount;
     avgDelayMix /= dspSectionsCount;
     
-    if (avgDelayMix > 0.1) {
+    if (avgDelayMix > 0.1 && !userDelayEnabled) {
        applyDelay(vocalSamples, outputSampleRate, 0.25, 0.35, avgDelayMix); // 250ms delay, 35% feedback
        allExplanations.unshift({
            action: `Applied ${Math.round(avgDelayMix * 100)}% Echo (Delay) to Vocals`,
-           reason: "The AI detected bright/sibilant vocals and added a slapback delay to thicken the sound.",
+           reason: "The AI detected dry vocals and added a rhythmic delay to thicken the sound.",
            tip: "Delay adds rhythm and depth without muddying the mix like too much reverb can.",
            section: 'Global', time: 'Entire Track', sectionType: 'AI DSP'
        });
     }
-    if (avgReverbMix > 0) {
+    
+    if (avgReverbMix > 0 && !userReverbEnabled) {
        applyReverb(vocalSamples, outputSampleRate, avgReverbMix);
        allExplanations.unshift({
            action: `Applied ${Math.round(avgReverbMix * 100)}% Reverb to Vocals`,
