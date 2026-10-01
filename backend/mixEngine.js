@@ -429,6 +429,25 @@ function applyChannelStrip(buffer, effects, sampleRate) {
     });
   }
   
+  if (effects.delay?.enabled) {
+    // Basic 1/4 note delay assumption (around 250ms), 30% feedback
+    applyDelay(buffer, sampleRate, 0.25, 0.3, (effects.delay.mix || 10) / 100);
+    explanations.push({
+      action: `Channel Strip Delay: ${effects.delay.mix}% mix`,
+      reason: `Added rhythmic repeats and depth.`,
+      tip: 'Delay adds rhythm and width without muddying the mix like too much reverb can.'
+    });
+  }
+
+  if (effects.reverb?.enabled) {
+    applyReverb(buffer, sampleRate, (effects.reverb.mix || 20) / 100);
+    explanations.push({
+      action: `Channel Strip Reverb: ${effects.reverb.mix}% mix`,
+      reason: `Added spatial depth to simulate a room/hall.`,
+      tip: 'Reverb pushes the track back in the mix and glues elements together.'
+    });
+  }
+  
   return explanations;
 }
 
