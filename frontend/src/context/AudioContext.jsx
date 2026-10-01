@@ -3,6 +3,7 @@ import axios from 'axios';
 import { get, set } from 'idb-keyval';
 import { supabase } from '../lib/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
+import toast from 'react-hot-toast';
 
 const AudioContext = createContext(null);
 
@@ -856,7 +857,7 @@ export const AudioProvider = ({ children }) => {
       return true;
     } catch (error) {
       console.error('Supabase Save Error:', error);
-      alert('Failed to save project to Supabase: ' + error.message);
+      toast.error('Failed to save project to Supabase: ' + error.message);
       return false;
     } finally {
       setIsLoading(false);
@@ -937,7 +938,7 @@ export const AudioProvider = ({ children }) => {
       return true;
     } catch (error) {
       console.error('Supabase Load Error:', error);
-      alert('Failed to load project from Supabase: ' + error.message);
+      toast.error('Failed to load project from Supabase: ' + error.message);
       return false;
     } finally {
       setIsLoading(false);

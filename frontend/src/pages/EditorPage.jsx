@@ -25,6 +25,7 @@ import ProjectsModal from '../components/ProjectsModal';
 import AIChatAssistant from '../components/AIChatAssistant';
 import { Cloud } from 'lucide-react';
 import audioEngine from '../utils/realtimeEffects';
+import toast from 'react-hot-toast';
 
 // ==========================================
 // HELPERS
@@ -2036,7 +2037,7 @@ const EditorPage = () => {
                       });
                     });
                     if (allMediaIds.size === 0) {
-                      alert('No audio clips to clean! Please add clips to the timeline first.');
+                      toast.error('No audio clips to clean! Please add clips to the timeline first.');
                       return;
                     }
                     // Denoise the first available clip
@@ -2079,14 +2080,14 @@ const EditorPage = () => {
                   });
 
                   if (vocalMediaIds.size === 0) {
-                    alert('Please add a vocal clip to the timeline to perform Deep Isolation.');
+                    toast.error('Please add a vocal clip to the timeline to perform Deep Isolation.');
                     return;
                   }
 
                   for (const mediaId of vocalMediaIds) {
                     await handleStemSplit(mediaId);
                   }
-                  alert('Deep Isolation Complete! Pure vocals and instrumental stems have been added to the Media Pool.');
+                  toast.success('Deep Isolation Complete! Pure vocals and instrumental stems have been added to the Media Pool.');
                 }}
                 disabled={isLoading}
                 className="ml-1 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-[10px] font-bold px-2.5 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(147,51,234,0.4)] transition-all flex items-center gap-1.5 border border-purple-400 disabled:border-gray-600"
@@ -2108,14 +2109,14 @@ const EditorPage = () => {
                   });
 
                   if (vocalMediaIds.size === 0) {
-                    alert('Please add a vocal clip to the timeline to perform custom De-Tapping.');
+                    toast.error('Please add a vocal clip to the timeline to perform custom De-Tapping.');
                     return;
                   }
 
                   for (const mediaId of vocalMediaIds) {
                     await handleDeTap(mediaId);
                   }
-                  alert('Custom AI De-Tap Complete! Taps removed and saved to Media Pool.');
+                  toast.success('Custom AI De-Tap Complete! Taps removed and saved to Media Pool.');
                 }}
                 disabled={isLoading}
                 className="ml-1 bg-pink-600 hover:bg-pink-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-[10px] font-bold px-2.5 py-1.5 rounded-[3px] shadow-[0_0_10px_rgba(219,39,119,0.4)] transition-all flex items-center gap-1.5 border border-pink-400 disabled:border-gray-600"
@@ -2137,7 +2138,7 @@ const EditorPage = () => {
                   });
 
                   if (vocalMediaIds.size === 0) {
-                    alert('Please add a vocal clip to the timeline to apply Pitch Correction.');
+                    toast.error('Please add a vocal clip to the timeline to apply Pitch Correction.');
                     return;
                   }
 
@@ -2146,7 +2147,7 @@ const EditorPage = () => {
                     lastResult = await handlePitchCorrection(mediaId, 'C', 'major', true);
                   }
                   if (lastResult) {
-                     alert('AI Pitch Correction applied successfully! (See explanations in lower zone)');
+                     toast.success('AI Pitch Correction applied successfully! (See explanations in lower zone)');
                   }
                 }}
                 disabled={isLoading}

@@ -1,11 +1,10 @@
 import numpy as np
 import librosa
 import soundfile as sf
-import joblib
 import sys
 import os
 
-print("[De-Tap AI] Starting Custom Table Tap Removal Model...")
+print("[Advanced AI] Starting Harmonic-Percussive Source Separation (HPSS)...")
 
 if len(sys.argv) < 3:
     print("Usage: python remove_taps.py <input.wav> <output.wav>")
@@ -14,55 +13,46 @@ if len(sys.argv) < 3:
 input_file = sys.argv[1]
 output_file = sys.argv[2]
 
-model_path = os.path.join(os.path.dirname(__file__), 'tap_detector_model.pkl')
-if not os.path.exists(model_path):
-    print(f"Error: Model file {model_path} not found. Please train the model first.")
-    sys.exit(1)
-
-# 1. Load Custom AI Model
-print("[De-Tap AI] Loading custom Machine Learning model...")
-clf = joblib.load(model_path)
-
-# 2. Load Audio
-print(f"[De-Tap AI] Loading audio: {os.path.basename(input_file)}")
+# 1. Load Audio
+print(f"[Advanced AI] Loading audio for deep transient analysis: {os.path.basename(input_file)}")
 y, sr = librosa.load(input_file, sr=None)
 
-# 3. Process audio in frames (sliding window)
-frame_length = int(0.02 * sr) # 20ms frames
-hop_length = int(0.01 * sr)   # 10ms hop
-frames = librosa.util.frame(y, frame_length=frame_length, hop_length=hop_length).T
+# 2. Apply Harmonic-Percussive Source Separation
+# Table taps are highly 'percussive' (vertical energy in spectrogram). 
+# Voice is highly 'harmonic' (horizontal energy in spectrogram).
+print("[Advanced AI] Decomposing spectrogram into Harmonic and Percussive components...")
+# margin > 1.0 increases the separation quality, pushing more energy into the percussive stem
+harmonic, percussive = librosa.effects.hpss(y, margin=(1.0, 5.0))
 
-print(f"[De-Tap AI] Analyzing {len(frames)} audio frames for table taps...")
-y_clean = np.copy(y)
+# The 'harmonic' component now contains the smooth vocals, minus the sharp table taps!
+# But to preserve some naturalness, we can keep a tiny bit of the percussive track (so consonants like 'T' and 'P' aren't totally lost),
+# but heavily attenuate it. Let's do a smart ducking: where percussive energy is extreme, we duck it.
 
-# Smoothing filter to avoid clicking when ducking
-duck_factor = np.ones(len(frames))
+# Calculate the envelope of the percussive component
+perc_envelope = np.abs(librosa.core.stft(percussive))
+rms_perc = librosa.feature.rms(S=perc_envelope)[0]
 
-tap_count = 0
-for i, frame in enumerate(frames):
-    # Extract MFCC for this tiny frame
-    mfcc = librosa.feature.mfcc(y=frame, sr=sr, n_mfcc=13)
-    mfcc_mean = np.mean(mfcc, axis=1).reshape(1, -1)
-    
-    # Predict if it's a tap
-    is_tap = clf.predict(mfcc_mean)[0]
-    
-    if is_tap == 1:
-        duck_factor[i] = 0.0 # Mute the frame
-        tap_count += 1
+# Normalize RMS to find the loudest taps
+rms_norm = rms_perc / (np.max(rms_perc) + 1e-6)
 
-print(f"[De-Tap AI] Detected {tap_count} table tap instances. Removing them...")
+# Interpolate the low-res RMS back to original audio length
+rms_full = np.interp(np.arange(len(y)), np.linspace(0, len(y), len(rms_norm)), rms_norm)
 
-# Apply ducking to the audio
-# (Simple implementation: applying the ducking factor per hop)
-for i in range(len(frames)):
-    start_idx = i * hop_length
-    end_idx = start_idx + frame_length
-    # Apply attenuation
-    y_clean[start_idx:end_idx] *= duck_factor[i]
+# Create a dynamic transient mask (if percussive energy is high, reduce volume)
+# Threshold: 0.1 (taps are usually loud spikes)
+mask = np.ones_like(y)
+mask[rms_full > 0.15] = 0.1  # Squashes the loud table taps by 90%
+
+# Combine: We take the original audio, apply the transient mask to kill the table taps,
+# and use a slight blend of the harmonic track to ensure the vocal stays smooth.
+y_clean = y * mask
+
+# To be even safer and cleaner, we just output the pure Harmonic stem (which inherently lacks taps)
+# blended with 50% of the masked original to preserve natural vocal consonants.
+y_final = (harmonic * 0.8) + (y_clean * 0.2)
 
 # 4. Save Cleaned Audio
-print(f"[De-Tap AI] Saving purified audio to: {os.path.basename(output_file)}")
-sf.write(output_file, y_clean, sr)
+print(f"[Advanced AI] Rendering purified studio audio to: {os.path.basename(output_file)}")
+sf.write(output_file, y_final, sr)
 
-print("[De-Tap AI] Process complete. All table taps isolated and removed successfully!")
+print("[Advanced AI] Process complete. Impulsive transients (table taps) removed using HPSS!")

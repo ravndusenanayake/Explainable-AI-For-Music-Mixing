@@ -4,6 +4,8 @@ import { AudioProvider } from './context/AudioContext';
 import Layout from './components/Layout';
 import { Music } from 'lucide-react';
 
+import { Toaster } from 'react-hot-toast';
+
 // Lazy loading pages for fast initial load
 const UploadPage = lazy(() => import('./pages/UploadPage'));
 const EditorPage = lazy(() => import('./pages/EditorPage'));
@@ -24,6 +26,24 @@ const LoadingFallback = () => (
 function App() {
   return (
     <AudioProvider>
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: '#1a1a1a',
+            color: '#fff',
+            border: '1px solid #333',
+            fontSize: '12px',
+            fontWeight: 'bold',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#1a1a1a',
+            },
+          },
+        }}
+      />
       <BrowserRouter>
         <Suspense fallback={<LoadingFallback />}>
           <Routes>

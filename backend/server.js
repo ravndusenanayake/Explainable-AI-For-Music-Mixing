@@ -266,9 +266,9 @@ app.post('/api/de-tap', upload.single('file'), asyncHandler(async (req, res) => 
             success: true,
             cleaned_audio_base64: cleanedBase64,
             explanations: [
-                "Custom Random Forest model used.",
-                "Analyzed MFCC features per 20ms frame.",
-                "Detected and ducked non-harmonic transient taps."
+                "Advanced Harmonic-Percussive Source Separation (HPSS) used.",
+                "Separated impulsive transients (taps) from vocal harmonics.",
+                "Ducked percussive peaks by 90% while preserving vocal consonants."
             ],
             processing_time: elapsed
         });
