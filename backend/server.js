@@ -20,8 +20,8 @@ app.use(express.json({ limit: '50mb' }));
 
 // Multer setup - using memory storage for seamless processing
 const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB per file
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB per file
 });
 
 // Helper function to handle async route errors
@@ -34,7 +34,7 @@ const asyncHandler = fn => (req, res, next) => {
 // ============================================================
 app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
     console.log('\n--- New DAW Mix Request ---');
-    
+
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ error: 'No files were uploaded.' });
     }
@@ -54,7 +54,7 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
     console.log('[Node] Starting advanced mix engine...');
 
     const startTime = Date.now();
-    
+
     // Run the advanced mixing engine
     // We pass the array of Multer files, and the parsed JSON state
     const result = await mixTracks(req.files, timelineState);
@@ -71,7 +71,7 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
         automationData: result.automationData,
         originalExplanations: result.explanations
     });
-    
+
     let finalExplanations = result.explanations;
     if (Array.isArray(geminiResult)) {
         finalExplanations = geminiResult;
@@ -83,11 +83,11 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
     }
 
     return res.status(200).json({
-      processed_audio_base64: mixedBase64,
-      sections: result.sections,
-      globalSummary: result.globalSummary,
-      explanations: finalExplanations,
-      automationData: result.automationData
+        processed_audio_base64: mixedBase64,
+        sections: result.sections,
+        globalSummary: result.globalSummary,
+        explanations: finalExplanations,
+        automationData: result.automationData
     });
 }));
 
@@ -98,7 +98,7 @@ const { convertVoiceStyle } = require('./voiceEngine');
 
 app.post('/api/convert-voice', upload.single('file'), asyncHandler(async (req, res) => {
     console.log('\n--- New Voice Conversion Request ---');
-    
+
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded.' });
     }
@@ -108,13 +108,13 @@ app.post('/api/convert-voice', upload.single('file'), asyncHandler(async (req, r
 
     const tempDir = path.join(__dirname, 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-    
+
     const inputPath = path.join(tempDir, `temp_convert_in_${Date.now()}.wav`);
     fs.writeFileSync(inputPath, req.file.buffer);
 
     try {
         const outputPath = await convertVoiceStyle(inputPath, style);
-        
+
         // Read the converted file back to buffer
         const convertedBuffer = fs.readFileSync(outputPath);
         const convertedBase64 = `data:audio/wav;base64,${convertedBuffer.toString('base64')}`;
@@ -137,7 +137,7 @@ const { execSync } = require('child_process');
 
 app.post('/api/denoise', upload.single('file'), asyncHandler(async (req, res) => {
     console.log('\n--- New AI Denoise Request ---');
-    
+
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded.' });
     }
@@ -146,28 +146,28 @@ app.post('/api/denoise', upload.single('file'), asyncHandler(async (req, res) =>
 
     const tempDir = path.join(__dirname, 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-    
+
     const timestamp = Date.now();
     const inputPath = path.join(tempDir, `denoise_in_${timestamp}.wav`);
     const outputPath = path.join(tempDir, `denoise_out_${timestamp}.wav`);
-    
+
     fs.writeFileSync(inputPath, req.file.buffer);
 
     try {
         const startTime = Date.now();
-        
+
         // Run the Python AI denoiser
         const pythonPath = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
         const denoiserScript = path.join(__dirname, 'denoiser.py');
-        
+
         const output = execSync(
             `"${pythonPath}" "${denoiserScript}" "${inputPath}" "${outputPath}"`,
             { encoding: 'utf-8', timeout: 120000 } // 2 minute timeout
         );
-        
+
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         console.log(`[Denoise] AI Processing complete in ${elapsed}s`);
-        
+
         let denoiseResult;
         try {
             denoiseResult = JSON.parse(output.trim());
@@ -175,21 +175,21 @@ app.post('/api/denoise', upload.single('file'), asyncHandler(async (req, res) =>
             console.error('[Denoise] Failed to parse Python output:', output);
             throw new Error('Denoiser returned invalid output');
         }
-        
+
         if (!denoiseResult.success) {
             throw new Error(denoiseResult.error || 'Denoiser failed');
         }
-        
+
         // Read the cleaned audio file
         const cleanedBuffer = fs.readFileSync(outputPath);
         const cleanedBase64 = `data:audio/wav;base64,${cleanedBuffer.toString('base64')}`;
-        
+
         // Cleanup temp files
         if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
         if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-        
+
         console.log(`[Denoise] ✅ Success! Removed ${denoiseResult.metrics.noise_reduction_percent}% noise, SNR +${denoiseResult.metrics.snr_improvement_db}dB`);
-        
+
         return res.status(200).json({
             success: true,
             cleaned_audio_base64: cleanedBase64,
@@ -197,7 +197,7 @@ app.post('/api/denoise', upload.single('file'), asyncHandler(async (req, res) =>
             explanations: denoiseResult.explanations,
             processing_time: elapsed
         });
-        
+
     } catch (err) {
         console.error(`[Denoise] Error: ${err.message}`);
         // Cleanup temp files on error
@@ -212,7 +212,7 @@ app.post('/api/denoise', upload.single('file'), asyncHandler(async (req, res) =>
 // ============================================================
 app.post('/api/de-tap', upload.single('file'), asyncHandler(async (req, res) => {
     console.log('\n--- New AI De-Tap Request ---');
-    
+
     if (!req.file) {
         return res.status(400).json({ error: 'No audio file provided.' });
     }
@@ -221,17 +221,17 @@ app.post('/api/de-tap', upload.single('file'), asyncHandler(async (req, res) => 
 
     const tempDir = path.join(__dirname, 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-    
+
     const timestamp = Date.now();
     const rawPath = path.join(tempDir, `detap_raw_${timestamp}`);
     const inputPath = path.join(tempDir, `detap_in_${timestamp}.wav`);
     const outputPath = path.join(tempDir, `detap_out_${timestamp}.wav`);
-    
+
     fs.writeFileSync(rawPath, req.file.buffer);
 
     try {
         const startTime = Date.now();
-        
+
         // Convert to WAV first to handle MP3/M4A uploads correctly for Python
         await new Promise((resolve, reject) => {
             ffmpeg(rawPath)
@@ -240,28 +240,28 @@ app.post('/api/de-tap', upload.single('file'), asyncHandler(async (req, res) => 
                 .on('error', reject)
                 .save(inputPath);
         });
-        
+
         // Run the Python Custom De-Tap model
         const pythonPath = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
         const detapScript = path.join(__dirname, 'remove_taps.py');
-        
+
         const output = execSync(
             `"${pythonPath}" "${detapScript}" "${inputPath}" "${outputPath}"`,
             { encoding: 'utf-8', timeout: 120000 }
         );
-        
+
         console.log(output);
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         console.log(`[De-Tap] AI Processing complete in ${elapsed}s`);
-        
+
         // Read the cleaned audio file
         const cleanedBuffer = fs.readFileSync(outputPath);
         const cleanedBase64 = `data:audio/wav;base64,${cleanedBuffer.toString('base64')}`;
-        
+
         // Cleanup temp files
         if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
         if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-        
+
         return res.status(200).json({
             success: true,
             cleaned_audio_base64: cleanedBase64,
@@ -272,7 +272,7 @@ app.post('/api/de-tap', upload.single('file'), asyncHandler(async (req, res) => 
             ],
             processing_time: elapsed
         });
-        
+
     } catch (err) {
         console.error(`[De-Tap] Error: ${err.message}`);
         if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
@@ -286,14 +286,14 @@ app.post('/api/de-tap', upload.single('file'), asyncHandler(async (req, res) => 
 // ============================================================
 app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) => {
     console.log('\n--- New 1-Click Auto Mix Request ---');
-    
+
     if (!req.files || req.files.length < 2) {
         return res.status(400).json({ error: 'Please upload both a vocal and instrumental track.' });
     }
 
     let vocalFile = req.files.find(f => f.originalname.toLowerCase().includes('vocal') || f.originalname.toLowerCase().includes('voc'));
     let instFile = req.files.find(f => f.originalname.toLowerCase().includes('inst') || f.originalname.toLowerCase().includes('beat') || f.originalname.toLowerCase().includes('karaoke')) || req.files.find(f => f !== vocalFile);
-    
+
     // If we couldn't match by name, just assume the order from frontend (Vocal first, Inst second)
     if (!vocalFile || !instFile) {
         vocalFile = req.files[0];
@@ -305,23 +305,23 @@ app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) =>
     // We need to write them to disk temporarily for the python script
     const tempDir = path.join(__dirname, 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-    
+
     const vocalPath = path.join(tempDir, 'temp_vocal.wav');
     const instPath = path.join(tempDir, 'temp_inst.wav');
-    
+
     fs.writeFileSync(vocalPath, vocalFile.buffer);
     fs.writeFileSync(instPath, instFile.buffer);
 
     console.log('[AutoMix] Running Auto-Alignment...');
-    
+
     const pythonProcess = spawn('python', ['autoAlign.py', vocalPath, instPath]);
-    
+
     let pythonOutput = '';
-    
+
     pythonProcess.stdout.on('data', (data) => {
         pythonOutput += data.toString();
     });
-    
+
     pythonProcess.on('close', async (code) => {
         let delaySeconds = 0;
         try {
@@ -335,7 +335,7 @@ app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) =>
         } catch (e) {
             console.error(`[AutoMix] Failed to parse python output: ${pythonOutput}`);
         }
-        
+
         // Clean up temp files
         fs.unlinkSync(vocalPath);
         fs.unlinkSync(instPath);
@@ -380,12 +380,12 @@ app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) =>
 
         console.log('[AutoMix] Timeline generated, passing to MixEngine...');
         const mixStartTime = Date.now();
-        
+
         timelineState.applyPitch = req.body.applyPitch === 'true';
 
         // Pass to existing mix engine
         const mixResult = await mixTracks([instFile, vocalFile], timelineState);
-        
+
         const elapsed = ((Date.now() - mixStartTime) / 1000).toFixed(1);
         console.log(`[AutoMix] Mix complete in ${elapsed}s`);
 
@@ -397,7 +397,7 @@ app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) =>
             automationData: mixResult.automationData,
             originalExplanations: mixResult.explanations
         });
-        
+
         let finalExplanations = mixResult.explanations;
         if (Array.isArray(geminiResult)) {
             finalExplanations = geminiResult;
@@ -409,12 +409,12 @@ app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) =>
         }
 
         return res.status(200).json({
-          processed_audio_base64: mixedBase64,
-          sections: mixResult.sections,
-          globalSummary: mixResult.globalSummary,
-          explanations: finalExplanations,
-          automationData: mixResult.automationData,
-          alignmentDelay: delaySeconds
+            processed_audio_base64: mixedBase64,
+            sections: mixResult.sections,
+            globalSummary: mixResult.globalSummary,
+            explanations: finalExplanations,
+            automationData: mixResult.automationData,
+            alignmentDelay: delaySeconds
         });
     });
 }));
@@ -425,7 +425,7 @@ app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) =>
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, history, mixContext } = req.body;
-        
+
         if (!message) {
             return res.status(400).json({ error: 'Message is required' });
         }
@@ -442,28 +442,28 @@ app.post('/api/chat', async (req, res) => {
 // LEGACY: Single-track upload endpoint (kept for compatibility)
 // ============================================================
 app.post('/api/upload', upload.single('audio'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No audio file uploaded.' });
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No audio file uploaded.' });
+        }
+
+        console.log(`[Node] Received file: ${req.file.originalname}, Size: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
+
+        // Return mock explanations for single-track mode
+        return res.status(200).json({
+            explanations: [
+                { action: "Applied Low-Cut Filter at 40Hz", reason: "Excessive sub-frequency rumble detected below 40Hz.", tip: "Always use high-pass filters on non-bass instruments." },
+                { action: "Dynamic EQ on Vocal Range", reason: "Harsh resonances found around 3kHz.", tip: "A dynamic EQ cuts narrow Q bands only when they become piercing." },
+                { action: "RMS Leveling & True Peak Limiting", reason: "Track had highly dynamic peaks.", tip: "Set your True Peak Limiter ceiling to -1.0dBTP for streaming." }
+            ]
+        });
+    } catch (error) {
+        console.error('[Node] Error in /api/upload:', error.message);
+        return res.status(500).json({
+            error: 'Failed to process audio.',
+            details: error.message,
+        });
     }
-
-    console.log(`[Node] Received file: ${req.file.originalname}, Size: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
-
-    // Return mock explanations for single-track mode
-    return res.status(200).json({
-      explanations: [
-        { action: "Applied Low-Cut Filter at 40Hz", reason: "Excessive sub-frequency rumble detected below 40Hz.", tip: "Always use high-pass filters on non-bass instruments." },
-        { action: "Dynamic EQ on Vocal Range", reason: "Harsh resonances found around 3kHz.", tip: "A dynamic EQ cuts narrow Q bands only when they become piercing." },
-        { action: "RMS Leveling & True Peak Limiting", reason: "Track had highly dynamic peaks.", tip: "Set your True Peak Limiter ceiling to -1.0dBTP for streaming." }
-      ]
-    });
-  } catch (error) {
-    console.error('[Node] Error in /api/upload:', error.message);
-    return res.status(500).json({
-      error: 'Failed to process audio.',
-      details: error.message,
-    });
-  }
 });
 
 // ============================================================
@@ -471,7 +471,7 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
 // ============================================================
 app.post('/api/pitch-correct', upload.single('file'), asyncHandler(async (req, res) => {
     console.log('\n--- New Pitch Correction Request ---');
-    
+
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded.' });
     }
@@ -485,7 +485,7 @@ app.post('/api/pitch-correct', upload.single('file'), asyncHandler(async (req, r
 
     const tempDir = path.join(__dirname, 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-    
+
     const inputPath = path.join(tempDir, `temp_pitch_in_${Date.now()}.wav`);
     fs.writeFileSync(inputPath, req.file.buffer);
 
@@ -561,7 +561,7 @@ app.post('/api/pitch-correct', upload.single('file'), asyncHandler(async (req, r
 // ============================================================
 app.post('/api/align', upload.array('files'), asyncHandler(async (req, res) => {
     console.log('\n--- New Multi-Track Alignment Request ---');
-    
+
     if (!req.files || req.files.length < 2) {
         return res.status(400).json({ error: 'Need at least 2 files (1 reference + 1 target).' });
     }
@@ -644,14 +644,14 @@ app.post('/api/align', upload.array('files'), asyncHandler(async (req, res) => {
 // ============================================================
 app.post('/api/detect-bpm', upload.single('file'), asyncHandler(async (req, res) => {
     console.log('\n--- New BPM Detection Request ---');
-    
+
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded.' });
     }
 
     const tempDir = path.join(__dirname, 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-    
+
     const inputPath = path.join(tempDir, `temp_bpm_${Date.now()}.wav`);
     fs.writeFileSync(inputPath, req.file.buffer);
 
@@ -672,7 +672,7 @@ app.post('/api/detect-bpm', upload.single('file'), asyncHandler(async (req, res)
         });
 
         const result = JSON.parse(output.trim());
-        
+
         if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
 
         return res.status(200).json(result);
@@ -690,7 +690,7 @@ const { splitStems } = require('./stemSplitter');
 
 app.post('/api/split-stems', upload.single('file'), asyncHandler(async (req, res) => {
     console.log('\n--- New Stem Split Request ---');
-    
+
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded.' });
     }
@@ -699,7 +699,7 @@ app.post('/api/split-stems', upload.single('file'), asyncHandler(async (req, res
 
     const tempDir = path.join(__dirname, 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-    
+
     const inputPath = path.join(tempDir, `temp_stem_in_${Date.now()}.wav`);
     fs.writeFileSync(inputPath, req.file.buffer);
 
@@ -736,10 +736,10 @@ app.post('/api/split-stems', upload.single('file'), asyncHandler(async (req, res
 }));
 
 app.listen(port, () => {
-  console.log(`=========================================`);
-  console.log(`🚀 Node.js Backend listening on port ${port}`);
-  console.log(`🎵 Multi-track mix endpoint: POST /api/mix`);
-  console.log(`📁 Legacy upload endpoint:   POST /api/upload`);
-  console.log(`🎼 Stem splitter endpoint:   POST /api/split-stems`);
-  console.log(`=========================================`);
+    console.log(`=========================================`);
+    console.log(`🚀 Node.js Backend listening on port ${port}`);
+    console.log(`🎵 Multi-track mix endpoint: POST /api/mix`);
+    console.log(`📁 Legacy upload endpoint:   POST /api/upload`);
+    console.log(`🎼 Stem splitter endpoint:   POST /api/split-stems`);
+    console.log(`=========================================`);
 });
