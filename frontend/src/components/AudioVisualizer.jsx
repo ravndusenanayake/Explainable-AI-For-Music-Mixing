@@ -39,7 +39,7 @@ const WaveformLayer = ({ audioUrl, label, icon: Icon, color, isActive, onReady, 
     ws.load(audioUrl);
 
     return () => {
-      ws.destroy();
+      if (ws && typeof ws.destroy === 'function') ws.destroy();
       wavesurferRef.current = null;
     };
   }, [audioUrl]);

@@ -122,7 +122,7 @@ const Clip = ({ clip, trackColor, onUpdateOffset, onUpdateTrim, onRemove, zoomLe
     });
     return () => {
       if (clipWsRefs) delete clipWsRefs.current[clip.id];
-      ws.destroy();
+      if (ws && typeof ws.destroy === 'function') ws.destroy();
       URL.revokeObjectURL(url);
     };
   }, [clip.file, showSpectrogram]); // Removed trackHeight from here so we don't reload clip on zoom

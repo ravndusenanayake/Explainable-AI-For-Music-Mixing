@@ -65,21 +65,25 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
     // Convert mixed audio to base64 for transport
     const mixedBase64 = `data:audio/wav;base64,${result.mixedAudioBuffer.toString('base64')}`;
 
-    // Generate Explainable AI output via Gemini API (if configured)
-    const geminiResult = await generateMixExplanation({
-        globalSummary: result.globalSummary,
-        automationData: result.automationData,
-        originalExplanations: result.explanations
-    });
-
     let finalExplanations = result.explanations;
-    if (Array.isArray(geminiResult)) {
-        finalExplanations = geminiResult;
-    } else if (geminiResult && geminiResult.explanations) {
-        finalExplanations = geminiResult.explanations;
-        if (geminiResult.overallSummary) {
-            result.globalSummary.summary = geminiResult.overallSummary;
+    try {
+        const geminiResult = await generateMixExplanation({
+            globalSummary: result.globalSummary,
+            automationData: result.automationData,
+            originalExplanations: result.explanations
+        });
+        
+        if (Array.isArray(geminiResult)) {
+            finalExplanations = geminiResult;
+        } else if (geminiResult && geminiResult.explanations) {
+            finalExplanations = geminiResult.explanations;
+            if (geminiResult.overallSummary) {
+                result.globalSummary.summary = geminiResult.overallSummary;
+            }
         }
+    } catch (error) {
+        console.error('[Node] Gemini Explanation generation failed:', error.message);
+        // Fallback to the original rule-based explanations
     }
 
     return res.status(200).json({
