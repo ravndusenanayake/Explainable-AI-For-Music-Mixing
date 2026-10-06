@@ -225,7 +225,12 @@ export const AudioProvider = ({ children }) => {
       if (data.sections) setSections(data.sections);
       if (data.globalSummary) {
         setGlobalSummary(data.globalSummary);
-        if (data.globalSummary.dspSettings) {
+        
+        if (data.updatedTracks) {
+          // AI applied intelligent DSP settings in the backend; update UI to reflect them!
+          setTracks(data.updatedTracks);
+        } else if (data.globalSummary.dspSettings) {
+          // Fallback legacy logic
           setTracks(prev => prev.map(t => {
             if (t.type === 'vocal') {
               return {

@@ -72,19 +72,27 @@ class AudioPlaybackEngine {
 
   _generateImpulseResponse(type) {
     const cfg = {
-      room:    { duration: 0.8,  decay: 3.0 },
-      plate:   { duration: 1.5,  decay: 2.5 },
-      hall:    { duration: 3.0,  decay: 2.0 },
-      valhalla:{ duration: 5.0,  decay: 1.5 },
+      room:    { duration: 1.2,  decay: 3.5, lpFreq: 0.3 },
+      plate:   { duration: 2.0,  decay: 2.5, lpFreq: 0.5 },
+      hall:    { duration: 4.0,  decay: 2.0, lpFreq: 0.15 },
+      valhalla:{ duration: 6.0,  decay: 1.5, lpFreq: 0.1 },
     };
-    const { duration, decay } = cfg[type] || cfg.room;
+    const { duration, decay, lpFreq } = cfg[type] || cfg.room;
     const length = Math.floor(this.ctx.sampleRate * duration);
     const impulse = this.ctx.createBuffer(2, length, this.ctx.sampleRate);
 
     for (let ch = 0; ch < 2; ch++) {
       const data = impulse.getChannelData(ch);
+      let lastVal = 0; // For simple lowpass filter
       for (let i = 0; i < length; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+        // Generate noise
+        const noise = (Math.random() * 2 - 1);
+        // Simple one-pole lowpass filter to warm up the reverb
+        const filteredNoise = lastVal + lpFreq * (noise - lastVal);
+        lastVal = filteredNoise;
+        
+        // Exponential decay
+        data[i] = filteredNoise * Math.pow(1 - i / length, decay);
       }
     }
     return impulse;
@@ -254,9 +262,10 @@ class AudioPlaybackEngine {
     // Reverb
     if (effects.reverb) {
       const mix = effects.reverb.enabled ? effects.reverb.mix / 100 : 0;
-      c.reverbSend.gain.value = mix;
-      c.reverbWet.gain.value  = mix;
-      c.dryGain.gain.value    = 1 - mix * 0.5;
+      // Boost the send amount to make the reverb more lush and noticeable
+      c.reverbSend.gain.value = mix * 1.5;
+      c.reverbWet.gain.value  = 1.0; 
+      c.dryGain.gain.value    = 1 - mix * 0.4;
       if (effects.reverb.type && c._lastReverbType !== effects.reverb.type) {
         try {
           c.convolver.buffer = this._generateImpulseResponse(effects.reverb.type);

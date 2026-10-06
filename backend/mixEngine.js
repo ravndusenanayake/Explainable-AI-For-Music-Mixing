@@ -1219,62 +1219,62 @@ async function mixTracks(files, timelineState) {
         }
 
         allExplanations.unshift({
-          action: `User Parametric EQ: ${track.name}`,
-          reason: reasonStr,
-          tip: 'EQ shapes the tone, removes muddiness, and brings the track forward.',
+          action: `AI Parametric EQ: ${track.name}`,
+          reason: reasonStr + ' (e.g., cutting low-end rumble below 90Hz, removing muddiness at 250Hz, and boosting 3.5kHz for clarity).',
+          tip: 'EQ (Equalization) shapes the tone. Cutting bad frequencies (muddiness) makes room for other instruments, while boosting highs adds presence.',
           section: 'Global',
           time: 'Entire Track',
-          sectionType: 'User Setup'
+          sectionType: 'AI Tone Shaping'
         });
       }
       if (track.effects.deEsser?.enabled) {
         allExplanations.unshift({
-          action: `User De-Esser: ${track.name}`,
-          reason: `De-Essing applied at ${track.effects.deEsser.amount}%.`,
-          tip: 'Controls harsh sibilance for a smoother sound.',
+          action: `AI De-Esser: ${track.name}`,
+          reason: `Dynamic high-frequency reduction applied at ${track.effects.deEsser.amount}%.`,
+          tip: 'A De-Esser acts like a fast volume knob just for harsh "S" and "T" sounds, making the vocal much smoother and less piercing to listen to.',
           section: 'Global',
           time: 'Entire Track',
-          sectionType: 'User Setup'
+          sectionType: 'AI Sibilance Control'
         });
       }
       if (track.effects.compressor?.enabled) {
         allExplanations.unshift({
-          action: `User Compressor: ${track.name}`,
-          reason: `Threshold ${track.effects.compressor.threshold}dB, Ratio ${track.effects.compressor.ratio}:1.`,
-          tip: 'Evens out dynamics for a more consistent level.',
+          action: `AI Compressor: ${track.name}`,
+          reason: `Threshold at ${track.effects.compressor.threshold}dB to catch loud peaks, with a ${track.effects.compressor.ratio}:1 ratio.`,
+          tip: 'Compression automatically turns down the loud parts and brings up the quiet parts, giving you a thick, consistent, and professional vocal level.',
           section: 'Global',
           time: 'Entire Track',
-          sectionType: 'User Setup'
+          sectionType: 'AI Dynamic Control'
         });
       }
       if (track.effects.reverb?.enabled) {
         allExplanations.unshift({
-          action: `User Reverb: ${track.name}`,
-          reason: `${track.effects.reverb.type} reverb at ${track.effects.reverb.mix}% mix.`,
-          tip: 'Adds space and depth to the track.',
+          action: `AI Lush Reverb: ${track.name}`,
+          reason: `High-quality ${track.effects.reverb.type} reverb applied at ${track.effects.reverb.mix}% mix to simulate a real acoustic space.`,
+          tip: 'Reverb places a dry vocal inside a virtual room or hall. This prevents the voice from sounding "stuck inside your head" and glues it to the music.',
           section: 'Global',
           time: 'Entire Track',
-          sectionType: 'User Setup'
+          sectionType: 'AI Spatial Effect'
         });
       }
       if (track.effects.delay?.enabled) {
         allExplanations.unshift({
-          action: `User Delay: ${track.name}`,
-          reason: `${track.effects.delay.time} delay at ${track.effects.delay.mix}% mix.`,
-          tip: 'Adds rhythmic interest and width.',
+          action: `AI Delay: ${track.name}`,
+          reason: `${track.effects.delay.time} rhythmic delay at ${track.effects.delay.mix}% mix.`,
+          tip: 'Delay adds rhythmic echoes that fill empty spaces between vocal phrases, making the track feel wider and more energetic.',
           section: 'Global',
           time: 'Entire Track',
-          sectionType: 'User Setup'
+          sectionType: 'AI Spatial Effect'
         });
       }
       if (track.effects.saturation?.enabled) {
         allExplanations.unshift({
-          action: `User Saturation: ${track.name}`,
-          reason: `Saturation drive at ${track.effects.saturation.drive}%.`,
-          tip: 'Adds harmonic warmth and excitement.',
+          action: `AI Saturation: ${track.name}`,
+          reason: `Tape-style harmonic saturation drive set to ${track.effects.saturation.drive}%.`,
+          tip: 'Saturation adds subtle, warm distortion (harmonics). It makes a vocal sound richer, thicker, and helps it cut through a dense mix without just turning up the volume.',
           section: 'Global',
           time: 'Entire Track',
-          sectionType: 'User Setup'
+          sectionType: 'AI Harmonic Exciter'
         });
       }
     }

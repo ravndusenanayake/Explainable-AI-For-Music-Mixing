@@ -123,10 +123,16 @@ def train_model():
     criterion = nn.L1Loss() # L1 Loss (MAE) works well for audio
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
+    start_epoch = 0
+    if os.path.exists('denoiser_model_epoch_20.pth'):
+        print("Resuming from epoch 20 checkpoint...")
+        model.load_state_dict(torch.load('denoiser_model_epoch_20.pth', map_location=device, weights_only=True))
+        start_epoch = 20
+        
     num_epochs = 50
     print("Starting training...")
     
-    for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
         model.train()
         running_loss = 0.0
         

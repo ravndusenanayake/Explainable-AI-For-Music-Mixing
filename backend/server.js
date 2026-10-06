@@ -53,6 +53,33 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
     console.log(`[Node] Received ${req.files.length} files. Timeline has ${timelineState.tracks.length} tracks.`);
     console.log('[Node] Starting advanced mix engine...');
 
+    // AI Auto-Injection: If this is an AI Mix request from the DAW, automatically 
+    // enhance the vocal tracks with optimal DSP settings if they aren't already set.
+    timelineState.tracks = timelineState.tracks.map(t => {
+        if (t.type === 'vocal' || (t.name && t.name.toLowerCase().includes('vocal'))) {
+            // Apply optimal vocal chain if user hasn't explicitly turned them all on
+            if (!t.effects || (!t.effects.reverb?.enabled && !t.effects.eq?.enabled)) {
+                t.effects = {
+                    ...t.effects,
+                    eq: { 
+                        enabled: true, 
+                        bands: [
+                            { type: 'highpass', freq: 90, Q: 1, gain: 0 },
+                            { type: 'peaking', freq: 250, Q: 1.5, gain: -2.5 }, 
+                            { type: 'peaking', freq: 3500, Q: 1, gain: 3.0 },  
+                            { type: 'highshelf', freq: 10000, Q: 1, gain: 2.0 } 
+                        ] 
+                    },
+                    compressor: { enabled: true, threshold: -18, ratio: 3.5 },
+                    deEsser: { enabled: true, amount: 45 },
+                    reverb: { enabled: true, mix: 40, type: 'valhalla' },
+                    saturation: { enabled: true, drive: 12 }
+                };
+            }
+        }
+        return t;
+    });
+
     const startTime = Date.now();
 
     // Run the advanced mixing engine
@@ -91,7 +118,8 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
         sections: result.sections,
         globalSummary: result.globalSummary,
         explanations: finalExplanations,
-        automationData: result.automationData
+        automationData: result.automationData,
+        updatedTracks: timelineState.tracks
     });
 }));
 
@@ -371,6 +399,21 @@ app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) =>
                     isMuted: false,
                     isSoloed: false,
                     volume: 1.0,
+                    effects: {
+                        eq: { 
+                            enabled: true, 
+                            bands: [
+                                { type: 'highpass', freq: 90, Q: 1, gain: 0 },
+                                { type: 'peaking', freq: 250, Q: 1.5, gain: -2.5 }, 
+                                { type: 'peaking', freq: 3500, Q: 1, gain: 3.0 },  
+                                { type: 'highshelf', freq: 10000, Q: 1, gain: 2.0 } 
+                            ] 
+                        },
+                        compressor: { enabled: true, threshold: -18, ratio: 3.5 },
+                        deEsser: { enabled: true, amount: 45 },
+                        reverb: { enabled: true, mix: 40, type: 'valhalla' },
+                        saturation: { enabled: true, drive: 12 }
+                    },
                     clips: [
                         {
                             id: 'clip_voc_1',
