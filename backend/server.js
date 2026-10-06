@@ -60,17 +60,18 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
             // Apply optimal vocal chain if user hasn't explicitly turned them all on
             if (!t.effects || (!t.effects.reverb?.enabled && !t.effects.eq?.enabled)) {
                 t.effects = {
-                    ...t.effects,
+                    ...(t.effects || {}),
+                        gate: t.effects?.gate || { enabled: true, threshold: -40 },
                     eq: { 
                         enabled: true, 
                         lowGain: 0,
                         midGain: -2,
                         highGain: 2.5,
                         bands: [
-                            { type: 'highpass', freq: 90, Q: 1, gain: 0 },
-                            { type: 'peaking', freq: 250, Q: 1.5, gain: -2.5 }, 
-                            { type: 'peaking', freq: 3500, Q: 1, gain: 3.0 },  
-                            { type: 'highshelf', freq: 10000, Q: 1, gain: 2.0 } 
+                            { id: 1, type: 'highpass', freq: 90, q: 1, gain: 0 },
+                            { id: 2, type: 'peaking', freq: 250, q: 1.5, gain: -2.5 }, 
+                            { id: 3, type: 'peaking', freq: 3500, q: 1, gain: 3.0 },  
+                            { id: 4, type: 'highshelf', freq: 10000, q: 1, gain: 2.0 } 
                         ] 
                     },
                     compressor: { enabled: true, threshold: -18, ratio: 3.5 },
@@ -89,6 +90,42 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
     // Run the advanced mixing engine
     // We pass the array of Multer files, and the parsed JSON state
     const result = await mixTracks(req.files, timelineState);
+
+    // Dynamically apply AI calculated DSP values to the UI tracks based on audio analysis!
+    if (result.globalSummary && result.globalSummary.dspSettings) {
+        timelineState.tracks = timelineState.tracks.map(t => {
+            if (t.type === 'vocal' || (t.name && t.name.toLowerCase().includes('vocal'))) {
+                if (t.effects && t.effects.reverb && t.effects.delay) {
+                    if (result.globalSummary.dspSettings.reverbMix > 0) {
+                        t.effects.reverb.enabled = true;
+                        t.effects.reverb.mix = Math.round(result.globalSummary.dspSettings.reverbMix * 100);
+                    } else {
+                        t.effects.reverb.enabled = false;
+                    }
+
+                    if (result.globalSummary.dspSettings.delayMix > 0) {
+                        t.effects.delay.enabled = true;
+                        t.effects.delay.mix = Math.round(result.globalSummary.dspSettings.delayMix * 100);
+                    } else {
+                        t.effects.delay.enabled = false;
+                    }
+
+                    if (result.globalSummary.dspSettings.compressorNeeded) {
+                        if (t.effects.compressor) t.effects.compressor.enabled = true;
+                    } else {
+                        if (t.effects.compressor) t.effects.compressor.enabled = false;
+                    }
+
+                    if (result.globalSummary.dspSettings.deEsserNeeded) {
+                        if (t.effects.deEsser) t.effects.deEsser.enabled = true;
+                    } else {
+                        if (t.effects.deEsser) t.effects.deEsser.enabled = false;
+                    }
+                }
+            }
+            return t;
+        });
+    }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`[Node] Mix complete in ${elapsed}s`);
@@ -407,10 +444,10 @@ app.post('/api/automix', upload.array('files'), asyncHandler(async (req, res) =>
                         eq: { 
                             enabled: true, 
                             bands: [
-                                { type: 'highpass', freq: 90, Q: 1, gain: 0 },
-                                { type: 'peaking', freq: 250, Q: 1.5, gain: -2.5 }, 
-                                { type: 'peaking', freq: 3500, Q: 1, gain: 3.0 },  
-                                { type: 'highshelf', freq: 10000, Q: 1, gain: 2.0 } 
+                                { id: 1, type: 'highpass', freq: 90, q: 1, gain: 0 },
+                                { id: 2, type: 'peaking', freq: 250, q: 1.5, gain: -2.5 }, 
+                                { id: 3, type: 'peaking', freq: 3500, q: 1, gain: 3.0 },  
+                                { id: 4, type: 'highshelf', freq: 10000, q: 1, gain: 2.0 } 
                             ] 
                         },
                         compressor: { enabled: true, threshold: -18, ratio: 3.5 },

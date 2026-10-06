@@ -1022,6 +1022,8 @@ async function mixTracks(files, timelineState) {
   let avgReverbMix = 0;
   let avgDelayMix = 0;
   let dspSectionsCount = 0;
+  let needsCompressor = false;
+  let needsDeEsser = false;
   
   // Check if any vocal track already has Reverb or Delay enabled manually by the user
   const userReverbEnabled = timelineState.tracks.some(t => t.type === 'vocal' && t.effects?.reverb?.enabled);
@@ -1032,6 +1034,11 @@ async function mixTracks(files, timelineState) {
       avgReverbMix += s.mixing.vocalReverbMix;
       avgDelayMix += s.mixing.vocalDelayMix;
       dspSectionsCount++;
+    }
+    // Check if AI recommended compressor or de-esser in this section
+    if (s.mixing.actions) {
+      if (s.mixing.actions.some(a => a.includes('Compressor') || a.includes('fluctuates') || a.includes('dynamic range'))) needsCompressor = true;
+      if (s.mixing.actions.some(a => a.includes('sibilance') || a.includes('De-Esser') || a.includes('brightness'))) needsDeEsser = true;
     }
   });
   
@@ -1192,7 +1199,9 @@ async function mixTracks(files, timelineState) {
     },
     dspSettings: {
       reverbMix: avgReverbMix || 0,
-      delayMix: avgDelayMix || 0
+      delayMix: avgDelayMix || 0,
+      compressorNeeded: needsCompressor || false,
+      deEsserNeeded: needsDeEsser || false
     },
     summary: `Analyzed ${numSections} sections across ${(maxLength / outputSampleRate).toFixed(0)}s of audio. ` +
       `${optimalSections} sections were already well-balanced, ` +

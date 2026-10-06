@@ -228,7 +228,15 @@ export const AudioProvider = ({ children }) => {
         
         if (data.updatedTracks) {
           // AI applied intelligent DSP settings in the backend; update UI to reflect them!
-          setTracks(data.updatedTracks);
+          // Rehydrate the 'file' objects which are lost (become empty objects) during the JSON roundtrip
+          const rehydratedTracks = data.updatedTracks.map(t => ({
+            ...t,
+            clips: t.clips.map(c => {
+              const media = mediaPool.find(m => m.id === c.mediaId);
+              return { ...c, file: media ? media.file : null };
+            })
+          }));
+          setTracks(rehydratedTracks);
         } else if (data.globalSummary.dspSettings) {
           // Fallback legacy logic
           setTracks(prev => prev.map(t => {
