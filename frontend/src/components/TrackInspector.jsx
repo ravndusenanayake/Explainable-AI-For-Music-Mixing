@@ -28,7 +28,7 @@ const Slider = ({ value, min, max, step, onChange, onInteract, label, unit }) =>
 );
 
 const TrackInspector = ({ trackId, pushUndo }) => {
-  const { tracks, updateTrackEffect } = useAudioContext();
+  const { tracks, updateTrackEffect, channelStripPresets, applyChannelStripPreset } = useAudioContext();
   const [showEQ, setShowEQ] = useState(false);
   const track = tracks.find(t => t.id === trackId);
 
@@ -54,6 +54,27 @@ const TrackInspector = ({ trackId, pushUndo }) => {
           <Settings className="w-3.5 h-3.5 text-cyan-400" />
           {track.name} FX
         </h2>
+      </div>
+
+      <div className="p-2 border-b border-[#2a2a2a] bg-[#1a1a1a]">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-gray-400 font-mono">Apply Preset</span>
+          <select 
+            onChange={(e) => {
+              if (e.target.value) {
+                if (pushUndo) pushUndo();
+                applyChannelStripPreset(trackId, e.target.value);
+                e.target.value = ""; // reset dropdown
+              }
+            }}
+            className="w-full bg-[#111] border border-[#444] rounded text-xs text-cyan-400 font-bold p-1 outline-none focus:border-cyan-500 cursor-pointer"
+          >
+            <option value="">-- Choose AI Preset --</option>
+            {channelStripPresets && Object.keys(channelStripPresets).map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-2">

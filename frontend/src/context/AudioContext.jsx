@@ -7,6 +7,66 @@ import toast from 'react-hot-toast';
 
 const AudioContext = createContext(null);
 
+export const channelStripPresets = {
+  'Clean Vocal': {
+    eq: { enabled: true, bands: [
+      { id: 1, type: 'highpass', freq: 80, gain: 0, q: 1 },
+      { id: 2, type: 'peaking', freq: 3000, gain: 2, q: 1.5 },
+      { id: 3, type: 'peaking', freq: 800, gain: -1.5, q: 1 },
+      { id: 4, type: 'highshelf', freq: 12000, gain: 1.5, q: 1 }
+    ]},
+    deEsser: { enabled: true, amount: 40 },
+    compressor: { enabled: true, threshold: -18, ratio: 3 },
+    saturation: { enabled: false, drive: 0 }
+  },
+  'Rock Vocal': {
+    eq: { enabled: true, bands: [
+      { id: 1, type: 'highpass', freq: 120, gain: 0, q: 1 },
+      { id: 2, type: 'peaking', freq: 2500, gain: 3, q: 1.2 },
+      { id: 3, type: 'peaking', freq: 500, gain: -2, q: 1 },
+      { id: 4, type: 'highshelf', freq: 8000, gain: 2, q: 1 }
+    ]},
+    deEsser: { enabled: true, amount: 50 },
+    compressor: { enabled: true, threshold: -15, ratio: 5 },
+    saturation: { enabled: true, drive: 25 }
+  },
+  'Warm Vocal': {
+    eq: { enabled: true, bands: [
+      { id: 1, type: 'highpass', freq: 60, gain: 0, q: 1 },
+      { id: 2, type: 'peaking', freq: 200, gain: 2, q: 0.8 },
+      { id: 3, type: 'peaking', freq: 4000, gain: -1, q: 1 },
+      { id: 4, type: 'highshelf', freq: 10000, gain: -2, q: 1 }
+    ]},
+    deEsser: { enabled: true, amount: 60 },
+    compressor: { enabled: true, threshold: -20, ratio: 3 },
+    saturation: { enabled: true, drive: 15 }
+  },
+  'Bright Pop': {
+    eq: { enabled: true, bands: [
+      { id: 1, type: 'highpass', freq: 100, gain: 0, q: 1 },
+      { id: 2, type: 'peaking', freq: 5000, gain: 3, q: 1 },
+      { id: 3, type: 'peaking', freq: 250, gain: -2, q: 1 },
+      { id: 4, type: 'highshelf', freq: 14000, gain: 3, q: 1 }
+    ]},
+    deEsser: { enabled: true, amount: 55 },
+    compressor: { enabled: true, threshold: -16, ratio: 4 },
+    saturation: { enabled: false, drive: 0 }
+  },
+  'Lankan Vocal': {
+    eq: { enabled: true, bands: [
+      { id: 1, type: 'highpass', freq: 90, gain: 0, q: 1 },
+      { id: 2, type: 'peaking', freq: 3500, gain: 3, q: 1.2 }, // Clarity for sinhala vocals
+      { id: 3, type: 'peaking', freq: 300, gain: -2, q: 1 },  // Remove mud
+      { id: 4, type: 'highshelf', freq: 10000, gain: 2, q: 1 } // Air
+    ]},
+    deEsser: { enabled: true, amount: 50 },
+    compressor: { enabled: true, threshold: -18, ratio: 4 },
+    saturation: { enabled: true, drive: 15 },
+    reverb: { enabled: true, type: 'valhalla', mix: 25 },
+    delay: { enabled: true, time: '1/4', mix: 10 }
+  }
+};
+
 export const AudioProvider = ({ children }) => {
   const [eqSettings, setEqSettings] = useState({
     lcFreq: 50,
@@ -195,8 +255,32 @@ export const AudioProvider = ({ children }) => {
       }
     });
 
+    // Forcefully auto-apply "Lankan Vocal" preset to vocal tracks during AI Mix
+    const autoPreparedTracks = tracks.map(t => {
+      if ((t.type === 'vocal' || t.name.toLowerCase().includes('vocal')) && t.effects) {
+        // Auto-apply our custom Lankan preset unconditionally for the magic AI Mix experience
+        const preset = channelStripPresets['Lankan Vocal'];
+        return {
+          ...t,
+          effects: {
+            ...t.effects,
+            eq: structuredClone(preset.eq),
+            deEsser: structuredClone(preset.deEsser),
+            compressor: structuredClone(preset.compressor),
+            saturation: structuredClone(preset.saturation),
+            reverb: structuredClone(preset.reverb),
+            delay: structuredClone(preset.delay),
+          }
+        };
+      }
+      return t;
+    });
+
+    // Update the UI immediately so the user sees the effects toggled on
+    setTracks(autoPreparedTracks);
+
     // Append the JSON description of the timeline
-    formData.append('timelineState', JSON.stringify({ tracks }));
+    formData.append('timelineState', JSON.stringify({ tracks: autoPreparedTracks }));
 
     try {
       setLoadingStage('Uploading stems & layout...');
@@ -237,30 +321,8 @@ export const AudioProvider = ({ children }) => {
             })
           }));
           setTracks(rehydratedTracks);
-        } else if (data.globalSummary.dspSettings) {
-          // Fallback legacy logic
-          setTracks(prev => prev.map(t => {
-            if (t.type === 'vocal') {
-              return {
-                ...t,
-                effects: {
-                  ...t.effects,
-                  reverb: { 
-                    ...t.effects?.reverb, 
-                    enabled: data.globalSummary.dspSettings.reverbMix > 0, 
-                    mix: Math.round(data.globalSummary.dspSettings.reverbMix * 100) 
-                  },
-                  delay: { 
-                    ...t.effects?.delay, 
-                    enabled: data.globalSummary.dspSettings.delayMix > 0, 
-                    mix: Math.round(data.globalSummary.dspSettings.delayMix * 100) 
-                  }
-                }
-              };
-            }
-            return t;
-          }));
         }
+
       }
       if (data.explanations) setExplanations(data.explanations);
       if (data.simpleExplanations) setSimpleExplanations(data.simpleExplanations);
@@ -721,55 +783,7 @@ export const AudioProvider = ({ children }) => {
     }
   };
 
-  // ==========================================
-  // NEW: Channel Strip Presets
-  // ==========================================
-  const channelStripPresets = {
-    'Clean Vocal': {
-      eq: { enabled: true, bands: [
-        { id: 1, type: 'highpass', freq: 80, gain: 0, q: 1 },
-        { id: 2, type: 'peaking', freq: 3000, gain: 2, q: 1.5 },
-        { id: 3, type: 'peaking', freq: 800, gain: -1.5, q: 1 },
-        { id: 4, type: 'highshelf', freq: 12000, gain: 1.5, q: 1 }
-      ]},
-      deEsser: { enabled: true, amount: 40 },
-      compressor: { enabled: true, threshold: -18, ratio: 3 },
-      saturation: { enabled: false, drive: 0 }
-    },
-    'Rock Vocal': {
-      eq: { enabled: true, bands: [
-        { id: 1, type: 'highpass', freq: 120, gain: 0, q: 1 },
-        { id: 2, type: 'peaking', freq: 2500, gain: 3, q: 1.2 },
-        { id: 3, type: 'peaking', freq: 500, gain: -2, q: 1 },
-        { id: 4, type: 'highshelf', freq: 8000, gain: 2, q: 1 }
-      ]},
-      deEsser: { enabled: true, amount: 50 },
-      compressor: { enabled: true, threshold: -15, ratio: 5 },
-      saturation: { enabled: true, drive: 25 }
-    },
-    'Warm Vocal': {
-      eq: { enabled: true, bands: [
-        { id: 1, type: 'highpass', freq: 60, gain: 0, q: 1 },
-        { id: 2, type: 'peaking', freq: 200, gain: 2, q: 0.8 },
-        { id: 3, type: 'peaking', freq: 4000, gain: -1, q: 1 },
-        { id: 4, type: 'highshelf', freq: 10000, gain: -2, q: 1 }
-      ]},
-      deEsser: { enabled: true, amount: 60 },
-      compressor: { enabled: true, threshold: -20, ratio: 3 },
-      saturation: { enabled: true, drive: 15 }
-    },
-    'Bright Pop': {
-      eq: { enabled: true, bands: [
-        { id: 1, type: 'highpass', freq: 100, gain: 0, q: 1 },
-        { id: 2, type: 'peaking', freq: 5000, gain: 3, q: 1 },
-        { id: 3, type: 'peaking', freq: 250, gain: -2, q: 1 },
-        { id: 4, type: 'highshelf', freq: 14000, gain: 3, q: 1 }
-      ]},
-      deEsser: { enabled: true, amount: 55 },
-      compressor: { enabled: true, threshold: -16, ratio: 4 },
-      saturation: { enabled: false, drive: 0 }
-    }
-  };
+
 
   const applyChannelStripPreset = (trackId, presetName) => {
     const preset = channelStripPresets[presetName];
