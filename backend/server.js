@@ -63,6 +63,9 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
                     ...t.effects,
                     eq: { 
                         enabled: true, 
+                        lowGain: 0,
+                        midGain: -2,
+                        highGain: 2.5,
                         bands: [
                             { type: 'highpass', freq: 90, Q: 1, gain: 0 },
                             { type: 'peaking', freq: 250, Q: 1.5, gain: -2.5 }, 
@@ -73,6 +76,7 @@ app.post('/api/mix', upload.array('files'), asyncHandler(async (req, res) => {
                     compressor: { enabled: true, threshold: -18, ratio: 3.5 },
                     deEsser: { enabled: true, amount: 45 },
                     reverb: { enabled: true, mix: 40, type: 'valhalla' },
+                    delay: { enabled: false, time: '1/4', mix: 15 },
                     saturation: { enabled: true, drive: 12 }
                 };
             }
