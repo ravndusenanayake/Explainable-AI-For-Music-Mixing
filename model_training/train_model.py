@@ -19,43 +19,39 @@ def train_model():
     
     # Feature columns
     feature_cols = ['vocal_rmsDb', 'inst_rmsDb', 'vocal_zcr', 'inst_zcr', 'vocal_crest', 'inst_crest']
-    X = df[feature_cols]
-    y_vocal_adj = df['vocal_adjustment_db']
-    y_inst_adj = df['inst_adjustment_db']
+    X = df[feature_cols].fillna(0)
+    
+    print("Generating Reverb and Delay targets based on heuristics...")
+    # Reverb Target: More dynamic (high crest) -> less reverb. Less dynamic -> more reverb.
+    df['target_reverb'] = df['vocal_crest'].apply(lambda c: min(40.0, max(10.0, 35.0 - c)))
+    # Delay Target: High ZCR (sharp vocals) -> more delay to soften.
+    df['target_delay'] = df['vocal_zcr'].apply(lambda z: min(30.0, max(5.0, z * 200)))
+    
+    # Target columns for the multi-output model: (Vocal Gain, Reverb Mix, Delay Mix)
+    y = df[['vocal_adjustment_db', 'target_reverb', 'target_delay']]
     
     print("Splitting data...")
-    X_train, X_test, y_train_vocal, y_test_vocal = train_test_split(X, y_vocal_adj, test_size=0.2, random_state=42)
-    _, _, y_train_inst, y_test_inst = train_test_split(X, y_inst_adj, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    print("Training Random Forest Model for Vocal Gain...")
-    rf_vocal = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
-    rf_vocal.fit(X_train, y_train_vocal)
-    
-    print("Training Random Forest Model for Instrumental Gain...")
-    rf_inst = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
-    rf_inst.fit(X_train, y_train_inst)
+    print("Training Multi-Output Random Forest Model...")
+    rf_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+    rf_model.fit(X_train, y_train)
     
     # Evaluation
-    vocal_preds = rf_vocal.predict(X_test)
-    inst_preds = rf_inst.predict(X_test)
+    preds = rf_model.predict(X_test)
     
     print("\n--- Evaluation Results ---")
-    print(f"Vocal Gain R2 Score: {r2_score(y_test_vocal, vocal_preds):.3f}")
-    print(f"Vocal Gain RMSE: {np.sqrt(mean_squared_error(y_test_vocal, vocal_preds)):.3f} dB")
+    print(f"Overall R2 Score: {r2_score(y_test, preds):.3f}")
     
-    print(f"Instrumental Gain R2 Score: {r2_score(y_test_inst, inst_preds):.3f}")
-    print(f"Instrumental Gain RMSE: {np.sqrt(mean_squared_error(y_test_inst, inst_preds)):.3f} dB")
-    
-    print("\nFeature Importances (Vocal Model):")
-    for name, imp in zip(feature_cols, rf_vocal.feature_importances_):
+    print("\nFeature Importances:")
+    for name, imp in zip(feature_cols, rf_model.feature_importances_):
         print(f"  {name}: {imp:.3f}")
         
-    # Save the models
+    # Save the model matching predict.py expectations
     os.makedirs(os.path.dirname(MODEL_OUTPUT_PATH), exist_ok=True)
-    print(f"\nSaving models to {MODEL_OUTPUT_PATH}...")
+    print(f"\nSaving multi-output model to {MODEL_OUTPUT_PATH}...")
     joblib.dump({
-        'vocal_model': rf_vocal, 
-        'inst_model': rf_inst, 
+        'model': rf_model, 
         'features': feature_cols
     }, MODEL_OUTPUT_PATH)
     
