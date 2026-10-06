@@ -11,7 +11,7 @@ async function generateMixExplanation(mixContext) {
     }
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
 
         const prompt = `
 You are an expert audio engineer and Explainable AI for a professional music mixing system.
@@ -32,7 +32,8 @@ Your response MUST be a valid JSON object with exactly this structure:
   ]
 }
 
-Provide 4 to 6 insightful explanations in the array. Make them sound like a professional mastering/mixing engineer explaining their thought process. Do NOT include markdown blocks like \`\`\`json, just output the raw JSON object.
+Provide 4 to 6 insightful explanations in the array. Make them sound like a professional mastering/mixing engineer explaining their thought process.
+CRITICAL: You MUST write all the text values (overallSummary, action, reason, tip, etc.) in Sinhala script (සිංහල අකුරෙන්) to make it highly localized for Sri Lankan users. Keep the JSON keys in English. Do NOT include markdown blocks like \`\`\`json, just output the raw JSON object.
 
 Mix Context Data:
 ${JSON.stringify(mixContext, null, 2)}
@@ -59,11 +60,14 @@ async function generateChatResponse(message, history, mixContext) {
     }
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
 
         let systemInstruction = `You are a professional audio mixing engineer and an AI assistant for a music mixing web application.
 The user is asking you questions about their mix, audio engineering concepts, or how to fix issues in their track.
 Answer concisely, professionally, and in a friendly manner.
+
+CRITICAL INSTRUCTION FOR LANGUAGE:
+You MUST fully support the Sinhala language. If the user asks their question in Sinhala (using Sinhala script) or Singlish (Sinhala words typed in English letters), you MUST reply in the EXACT same language format (Sinhala script or Singlish). Be very helpful and conversational.
 
 Here is the current context of the user's mix (stats, explanations, and decisions made by the system):
 ${mixContext ? JSON.stringify(mixContext) : "No mix context available yet."}

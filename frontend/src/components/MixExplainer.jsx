@@ -4,7 +4,7 @@ import {
   BarChart3, Clock, TrendingUp, TrendingDown, Minus,
   ChevronDown, ChevronUp, Mic, Guitar, Info,
   CheckCircle2, AlertTriangle, AlertCircle, Sparkles, Play,
-  SlidersHorizontal
+  SlidersHorizontal, Volume2
 } from 'lucide-react';
 
 const severityConfig = {
@@ -177,21 +177,28 @@ const SectionCard = ({ section, isActive, isExpanded, onToggle, onSeek }) => {
               {section.explanations && section.explanations.length > 0 && (
                 <div className="space-y-3">
                   {section.explanations.map((exp, idx) => (
-                    <div key={idx} className="bg-black/30 rounded-xl p-4 border border-white/5">
-                      <div className="flex items-start gap-2 mb-2">
-                        <Sparkles className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                        <h4 className="text-sm font-semibold text-white">{exp.action}</h4>
-                      </div>
-                      <p className="text-xs text-gray-300 leading-relaxed ml-6 mb-2">
-                        {exp.reason}
-                      </p>
-                      {exp.tip && (
-                        <div className="ml-6 flex items-start gap-2 text-xs text-violet-300 bg-violet-500/5 rounded-lg p-2.5 border border-violet-500/10">
-                          <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                          <p><span className="font-semibold text-white">Pro Tip:</span> {exp.tip}</p>
+                      <div key={idx} className="bg-black/30 rounded-xl p-4 border border-white/5 relative">
+                        <div className="flex items-start gap-2 mb-2 pr-8">
+                          <Sparkles className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                          <h4 className="text-sm font-semibold text-white">{exp.action}</h4>
                         </div>
-                      )}
-                    </div>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleSpeak(`${exp.action}. ${exp.reason}. Pro Tip: ${exp.tip || ''}`); }}
+                            className="absolute top-4 right-4 text-gray-500 hover:text-cyan-400 p-1 rounded transition-colors"
+                            title="Read Aloud"
+                        >
+                            <Volume2 className="w-4 h-4" />
+                        </button>
+                        <p className="text-xs text-gray-300 leading-relaxed ml-6 mb-2">
+                          {exp.reason}
+                        </p>
+                        {exp.tip && (
+                          <div className="ml-6 flex items-start gap-2 text-xs text-violet-300 bg-violet-500/5 rounded-lg p-2.5 border border-violet-500/10">
+                            <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                            <p><span className="font-semibold text-white">Pro Tip:</span> {exp.tip}</p>
+                          </div>
+                        )}
+                      </div>
                   ))}
                 </div>
               )}
@@ -231,6 +238,15 @@ const MixExplainer = ({ sections, currentTime, onSeek, globalSummary, simpleExpl
       setExpandedIndex(activeIndex);
     }
   }, [activeIndex]);
+
+  const handleSpeak = (text) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.95;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   const filteredSections = filter === 'all'
     ? sections
