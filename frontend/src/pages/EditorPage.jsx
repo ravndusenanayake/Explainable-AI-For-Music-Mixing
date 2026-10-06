@@ -1343,10 +1343,11 @@ const EditorPage = () => {
 
   const handleAddTrack = () => {
     const trackColors = ['rose', 'cyan', 'blue', 'pink'];
+    const isVocal = tracks.length % 2 === 0;
     const newTrack = {
       id: `t_${Date.now()}`,
-      name: `Track ${tracks.length + 1}`,
-      type: 'vocal',
+      name: isVocal ? `Vocal ${Math.floor(tracks.length/2) + 1}` : `Instrumental ${Math.floor(tracks.length/2) + 1}`,
+      type: isVocal ? 'vocal' : 'instrumental',
       color: trackColors[tracks.length % trackColors.length],
       clips: [],
       pan: 0,
@@ -1644,7 +1645,7 @@ const EditorPage = () => {
 
   const menuConfig = {
     'File': [
-      { label: 'New Project', action: () => { if (window.confirm('Start new project?')) { setTracks([]); navigate('/'); } } },
+      { label: 'New Project', action: () => { if (window.confirm('Start new project?')) { resetContext(); navigate('/'); } } },
       { label: 'Open Project...', action: () => alert('Open Project: Not implemented (Requires backend)') },
       { divider: true },
       { label: 'Save', action: () => alert('Save: Not implemented'), shortcut: 'Ctrl+S' },

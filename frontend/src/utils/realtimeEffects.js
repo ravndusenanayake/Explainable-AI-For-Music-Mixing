@@ -340,7 +340,29 @@ class AudioPlaybackEngine {
       // Apply mute/solo/volume
       const shouldPlay = anySolo ? t.isSoloed : !t.isMuted;
       const trackVol = t.volume !== undefined ? t.volume : 1;
+      
+      chain.trackGain.gain.cancelScheduledValues(this.ctx.currentTime);
       chain.trackGain.gain.value = shouldPlay ? trackVol : 0;
+
+      // Apply AI Volume Automation (if any)
+      if (shouldPlay && t.automation && t.automation.length > 0) {
+        // Find the current automation gain at the playhead
+        let currentAutoGainDb = 0;
+        for (let i = 0; i < t.automation.length; i++) {
+          if (t.automation[i].time <= playheadTime) currentAutoGainDb = t.automation[i].gainDb;
+        }
+        
+        const initialGainVal = Math.pow(10, currentAutoGainDb / 20);
+        chain.trackGain.gain.setValueAtTime(trackVol * initialGainVal, baseCtxTime);
+
+        t.automation.forEach(pt => {
+          if (pt.time >= playheadTime) {
+            const absTime = baseCtxTime + (pt.time - playheadTime);
+            const gainVal = Math.pow(10, pt.gainDb / 20);
+            chain.trackGain.gain.linearRampToValueAtTime(trackVol * gainVal, absTime);
+          }
+        });
+      }
 
       // Apply effects
       if (t.effects) this.updateEffects(t.id, t.effects);

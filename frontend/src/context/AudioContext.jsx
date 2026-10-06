@@ -100,10 +100,8 @@ export const AudioProvider = ({ children }) => {
   };
 
   const [tracks, setTracks] = useState([
-    { id: 't1', name: 'Lead Vocal', type: 'vocal', color: 'rose', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
-    { id: 't2', name: 'Backing Vocal', type: 'vocal', color: 'pink', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
-    { id: 't3', name: 'Main Instrumental', type: 'instrumental', color: 'cyan', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
-    { id: 't4', name: 'Drums / Beat', type: 'instrumental', color: 'blue', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
+    { id: 't1', name: 'Vocal', type: 'vocal', color: 'rose', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
+    { id: 't2', name: 'Instrumental', type: 'instrumental', color: 'cyan', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) }
   ]);
 
   const [masterVolume, setMasterVolume] = useState(1);
@@ -212,7 +210,10 @@ export const AudioProvider = ({ children }) => {
 
   const resetContext = () => {
     setMediaPool([]);
-    setTracks(tracks.map(t => ({ ...t, clips: [] })));
+    setTracks([
+      { id: 't1', name: 'Vocal', type: 'vocal', color: 'rose', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) },
+      { id: 't2', name: 'Instrumental', type: 'instrumental', color: 'cyan', clips: [], pan: 0, volume: 1, isMuted: false, isSoloed: false, effects: structuredClone(defaultEffects) }
+    ]);
     setProcessedAudioUrl(null);
     setSections([]);
     setGlobalSummary(null);
@@ -309,20 +310,50 @@ export const AudioProvider = ({ children }) => {
       if (data.sections) setSections(data.sections);
       if (data.globalSummary) {
         setGlobalSummary(data.globalSummary);
-        
-        if (data.updatedTracks) {
-          // AI applied intelligent DSP settings in the backend; update UI to reflect them!
-          // Rehydrate the 'file' objects which are lost (become empty objects) during the JSON roundtrip
-          const rehydratedTracks = data.updatedTracks.map(t => ({
-            ...t,
-            clips: t.clips.map(c => {
-              const media = mediaPool.find(m => m.id === c.mediaId);
-              return { ...c, file: media ? media.file : null };
-            })
-          }));
-          setTracks(rehydratedTracks);
-        }
+        if (data.globalSummary.dspSettings) {
+          // Calculate average AI gain adjustments across all sections
+          let avgVocDb = 0;
+          let avgInstDb = 0;
+          if (data.sections && data.sections.length > 0) {
+            let totalVocDb = 0;
+            let totalInstDb = 0;
+            data.sections.forEach(s => {
+              totalVocDb += (s.mixing?.vocalGainDb || 0);
+              totalInstDb += (s.mixing?.instrumentalGainDb || 0);
+            });
+            avgVocDb = totalVocDb / data.sections.length;
+            avgInstDb = totalInstDb / data.sections.length;
+          }
 
+          const newVocGain = dbToGain(avgVocDb);
+          const newInstGain = dbToGain(avgInstDb);
+
+          setTracks(prev => prev.map(t => {
+            if (t.type === 'vocal') {
+              return {
+                ...t,
+                volume: newVocGain, // Auto-apply Vocal Volume
+                effects: {
+                  ...t.effects,
+                  reverb: { 
+                    ...t.effects?.reverb, 
+                    enabled: data.globalSummary.dspSettings.reverbMix > 0, 
+                    mix: Math.round(data.globalSummary.dspSettings.reverbMix) 
+                  },
+                  delay: { 
+                    ...t.effects?.delay, 
+                    enabled: data.globalSummary.dspSettings.delayMix > 0, 
+                    mix: Math.round(data.globalSummary.dspSettings.delayMix) 
+                  }
+                }
+              };
+            }
+            if (t.type === 'instrumental' || t.name.toLowerCase().includes('drum') || t.name.toLowerCase().includes('beat')) {
+              return { ...t, volume: newInstGain };
+            }
+            return t;
+          }));
+        }
       }
       if (data.explanations) setExplanations(data.explanations);
       if (data.simpleExplanations) setSimpleExplanations(data.simpleExplanations);
@@ -483,12 +514,12 @@ export const AudioProvider = ({ children }) => {
                   reverb: { 
                     ...t.effects?.reverb, 
                     enabled: data.globalSummary.dspSettings.reverbMix > 0, 
-                    mix: Math.round(data.globalSummary.dspSettings.reverbMix * 100) 
+                    mix: Math.round(data.globalSummary.dspSettings.reverbMix) 
                   },
                   delay: { 
                     ...t.effects?.delay, 
                     enabled: data.globalSummary.dspSettings.delayMix > 0, 
-                    mix: Math.round(data.globalSummary.dspSettings.delayMix * 100) 
+                    mix: Math.round(data.globalSummary.dspSettings.delayMix) 
                   }
                 }
               };

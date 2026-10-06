@@ -556,6 +556,8 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
         return {
           vocalGainDb: mlDecision.vocalGainDb,
           instrumentalGainDb: mlDecision.instrumentalGainDb,
+          vocalReverbMix: mlDecision.reverbMix,
+          vocalDelayMix: mlDecision.delayMix,
           actions: mlDecision.explanations.map(e => e.action),
           explanations: mlDecision.explanations,
           severity: mlDecision.severity
@@ -569,6 +571,8 @@ function makeMixingDecisions(analysis, sectionType, sectionIndex) {
   const decisions = {
     vocalGainDb: 0,
     instrumentalGainDb: 0,
+    vocalReverbMix: 20,
+    vocalDelayMix: 10,
     actions: [],
     explanations: [],
     severity: 'optimal', // 'optimal' | 'adjusted' | 'significant'
@@ -1091,22 +1095,15 @@ async function mixTracks(files, timelineState) {
     const end = Math.min(start + barSamples, maxLength);
     
     const vocalGain = Math.pow(10, sections[i].mixing.vocalGainDb / 20);
-    const instGain = Math.pow(10, sections[i].mixing.instrumentalGainDb / 20);
+    const instGain = 1.0; // User request: Do not modify instrumental track at all
 
     for (let s = start; s < end; s++) {
       // We only have Mono sums, so we copy them to both L and R channels
       const v = vocalSamples[s] || 0;
       const inst = instSamples[s] || 0;
 
-      // Side-Chain Ducking: When vocal is loud, duck instrumental
-      const vAbs = Math.abs(v);
-      const threshold = 0.05; // ~ -26dBFS
+      // User Request: Disabled Side-Chain Ducking to keep instrumental unchanged
       let duckingFactor = 1.0;
-      if (vAbs > threshold) {
-        // Duck instrumental by up to -3dB (0.7x) depending on vocal amplitude
-        // Smooth it slightly using a quick attack envelope concept
-        duckingFactor = Math.max(0.7, 1.0 - (vAbs * 0.5));
-      }
 
       const mixedSample = (v * vocalGain) + (inst * instGain * duckingFactor);
 
@@ -1115,36 +1112,11 @@ async function mixTracks(files, timelineState) {
     }
   }
 
-  // Add side-chain ducking explanation
-  allExplanations.unshift({
-    action: 'Side-Chain Ducking Applied',
-    reason: 'Automatically lowered the instrumental volume when the vocal gets loud to prevent frequency masking.',
-    tip: 'Side-chaining helps the vocal cut through the mix without making the whole track too loud.',
-    section: 'Global',
-    time: 'Entire Track',
-    sectionType: 'AI Dynamics'
-  });
+
 
   // ── Step 4: Normalize the final mix ──
-  let globalPeak = 0;
-  for (let ch = 0; ch < outputChannels; ch++) {
-    for (let s = 0; s < maxLength; s++) {
-      const abs = Math.abs(mixedChannelData[ch][s]);
-      if (abs > globalPeak) globalPeak = abs;
-    }
-  }
-
-  // Normalize to -1dBFS (0.891)
-  const targetPeak = 0.891;
-  if (globalPeak > 0) {
-    const normalizeGain = targetPeak / globalPeak;
-    for (let ch = 0; ch < outputChannels; ch++) {
-      for (let s = 0; s < maxLength; s++) {
-        mixedChannelData[ch][s] *= normalizeGain;
-      }
-    }
-    console.log(`[MixEngine] Normalized: peak ${linearToDb(globalPeak).toFixed(1)}dB → ${linearToDb(targetPeak).toFixed(1)}dBFS`);
-  }
+  // User Request: Disabled normalization to prevent instrumental track volume pumping
+  console.log('[MixEngine] Normalization skipped as per user request to preserve instrumental dynamics.');
 
   // ── Step 5: Encode to WAV ──
   console.log('[MixEngine] Encoding mixed output to WAV...');

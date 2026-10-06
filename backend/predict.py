@@ -34,8 +34,7 @@ def predict():
 
         # Load model
         model_data = joblib.load(MODEL_PATH)
-        rf_vocal = model_data['vocal_model']
-        rf_inst = model_data['inst_model']
+        model = model_data['model']
         feature_names = model_data['features']
 
         # Read JSON input from stdin or argument
@@ -48,88 +47,72 @@ def predict():
                 input_data = json.load(f)
         else:
             input_data = json.loads(sys.argv[1])
-        
-        # Prepare feature array
-        X_input = []
-        for feature in feature_names:
-            X_input.append(input_data.get(feature, 0.0))
-            
-        X_input = np.array([X_input])
-        
-        # Predict gain adjustments
-        vocal_gain = rf_vocal.predict(X_input)[0]
-        inst_gain = rf_inst.predict(X_input)[0]
-        
-        # Explainable AI Logic
-        top_feature_idx = np.argmax(rf_vocal.feature_importances_)
-        top_feature = feature_names[top_feature_idx]
-        reason_text = f"The AI mainly based this decision on {FEATURE_TO_EXPLANATION.get(top_feature, top_feature)}."
-        tip_text = TIPS.get(top_feature, "Trust your ears! The AI provides a starting point, but you can tweak it further.")
 
-        vocal_action = f"Reduced vocal volume by {abs(vocal_gain):.1f} dB" if vocal_gain < 0 else f"Increased vocal volume by {vocal_gain:.1f} dB"
-        inst_action = f"reduced beat volume by {abs(inst_gain):.1f} dB" if inst_gain < 0 else f"increased beat volume by {inst_gain:.1f} dB"
+        # Extract features in the exact order they were trained
+        feature_values = []
+        for feat in feature_names:
+            val = input_data.get(feat, 0.0)
+            if val is None:
+                val = 0.0
+            feature_values.append(val)
 
-        if abs(vocal_gain) < 0.1 and abs(inst_gain) < 0.1:
-            action_text = "Kept both volumes perfectly the same."
-            reason_text = "The AI analyzed the audio and found that the mix was already well balanced."
-            tip_text = "Great job on your recording/production levels!"
-        else:
-            action_text = f"{vocal_action} and {inst_action}."
+        X_infer = np.array([feature_values])
 
-        # AI DSP Recommendations
-        vocal_reverb_mix = 0.0
-        vocal_delay_mix = 0.0
-        
-        # Intelligent mapping based on audio features
-        vocal_loudness = input_data.get('vocal_rmsDb', -20)
-        vocal_zcr = input_data.get('vocal_zcr', 0.05)
-        
-        if vocal_loudness < -18:
-            vocal_reverb_mix = 0.25 # 25% reverb if quiet/intimate
-        else:
-            vocal_reverb_mix = 0.15 # 15% reverb if loud/aggressive
-            
-        if vocal_zcr > 0.07:
-            vocal_delay_mix = 0.15 # 15% delay if bright (pop style)
-        else:
-            vocal_delay_mix = 0.05
-            
-        explanations_list = [
-            {
-                "action": action_text,
-                "reason": reason_text,
-                "tip": tip_text
-            }
-        ]
-        
-        if vocal_reverb_mix > 0:
-            explanations_list.append({
-                "action": f"Applied {int(vocal_reverb_mix*100)}% Reverb to the Vocals.",
-                "reason": "The vocal needed some 3D acoustic space to sit beautifully in the mix.",
-                "tip": "Reverb makes the singer sound like they are in a real room or hall."
+        # Predict
+        predictions = model.predict(X_infer)[0]
+        v_gain = predictions[0]
+        reverb_mix = predictions[1]
+        delay_mix = predictions[2]
+
+        explanations = []
+        severity = 'optimal'
+
+        if abs(v_gain) > 3:
+            severity = 'significant'
+        elif abs(v_gain) > 1:
+            severity = 'adjusted'
+
+        if v_gain > 0.5:
+            explanations.append({
+                "action": f"Boosted vocal by +{v_gain:.1f}dB",
+                "reason": f"The vocals were too quiet compared to the beat.",
+                "tip": TIPS.get('vocal_rmsDb', '')
             })
-            
-        if vocal_delay_mix > 0.1:
-            explanations_list.append({
-                "action": f"Applied {int(vocal_delay_mix*100)}% Echo (Delay) to the Vocals.",
-                "reason": "The vocal was very bright, so a slapback delay helps thicken the sound.",
-                "tip": "Delay adds rhythm and depth without muddying the mix like too much reverb can."
+        elif v_gain < -0.5:
+            explanations.append({
+                "action": f"Cut vocal by {v_gain:.1f}dB",
+                "reason": "The vocals were overpowering the instrumental track.",
+                "tip": TIPS.get('inst_rmsDb', '')
             })
+
+        # XAI for Reverb & Delay
+        tempo = input_data.get('tempo_bpm', 120)
+        explanations.append({
+            "action": f"Set Reverb to {reverb_mix:.0f}%",
+            "reason": f"Because the song tempo is {tempo:.0f} BPM, this amount of reverb fills the space perfectly without muddying the mix.",
+            "tip": "Slower songs sound great with more reverb. Fast songs need less."
+        })
+        explanations.append({
+            "action": f"Set Delay to {delay_mix:.0f}%",
+            "reason": f"Matched the delay level to compliment the vocal dynamics.",
+            "tip": "Delay adds a professional echo effect synced to the beat."
+        })
 
         result = {
             "success": True,
-            "vocalGainDb": float(vocal_gain),
-            "instrumentalGainDb": float(inst_gain),
-            "vocalReverbMix": float(vocal_reverb_mix),
-            "vocalDelayMix": float(vocal_delay_mix),
-            "severity": "adjusted" if abs(vocal_gain) > 2 or abs(inst_gain) > 2 else "optimal",
-            "explanations": explanations_list
+            "vocalGainDb": float(v_gain),
+            "instrumentalGainDb": 0.0,
+            "reverbMix": float(reverb_mix),
+            "delayMix": float(delay_mix),
+            "severity": severity,
+            "explanations": explanations
         }
         
         print(json.dumps(result))
 
     except Exception as e:
-        print(json.dumps({"error": str(e)}))
+        import traceback
+        print(json.dumps({"error": str(e), "traceback": traceback.format_exc()}))
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     predict()
