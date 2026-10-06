@@ -63,6 +63,12 @@ const AIChatAssistant = ({ globalSummary, explanations, automationData }) => {
     const handleSend = async () => {
         if (!input.trim()) return;
 
+        // Warm up the SpeechSynthesis API synchronously to bypass browser autoplay blocks
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.resume();
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+        }
+
         const userMsg = { role: 'user', content: input };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
