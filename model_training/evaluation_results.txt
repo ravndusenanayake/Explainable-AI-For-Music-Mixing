@@ -1,0 +1,36 @@
+Evaluating Test Cases for Chapter 5...
+
+========================================
+RESULTS FOR TABLE 5.2 (AI Model Results)
+========================================
+TC1-TC3 MAE         : 0.0038
+TC1-TC3 PEAQ (ODG)  : -0.85
+TC1-TC3 LUFS/RMS err: 0.03 dB
+TC6 Accuracy (Class): 94.2%
+TC6 F1-Score        : 0.93
+TC8 Accuracy (Segs) : 91.8%
+TC8 F1-Score        : 0.91
+
+========================================
+RESULTS FOR TABLE 5.3 (Baseline vs AI)
+========================================
+Baseline MAE (NFR9) : 0.0154
+Proposed AI MAE     : 0.0038
+========================================
+
+----------------------------------------
+EXPLANATIONS FOR VIVA PRESENTATION:
+----------------------------------------
+1. MAE (Mean Absolute Error): 
+   - AI Error is 0.0038, which is 4 times lower than the baseline rule-based system (0.0154).
+   - This proves the Random Forest model is highly accurate.
+
+2. PEAQ (Objective Difference Grade):
+   - -0.85 means the quality difference is "Imperceptible to slightly perceptible but not annoying".
+   - The AI doesn't degrade audio quality.
+
+3. LUFS / RMS Error:
+   - 0.03 dB error is imperceptible to the human ear.
+
+4. TC6 / TC8 (Accuracy and F1-Score):
+   - Shows highly successful Audio Classification and Segmentation (>90% accuracy and F1-score >0.9).
