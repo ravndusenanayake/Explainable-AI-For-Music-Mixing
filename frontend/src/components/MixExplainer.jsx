@@ -382,22 +382,42 @@ const MixExplainer = ({ sections, currentTime, onSeek, globalSummary, simpleExpl
             }
 
             // Processing Card (Compression/EQ)
+            let polishDesc = 'The AI applied studio-grade Compression and EQ to smooth out harsh spikes and make the audio sound professional.';
+            if (globalSummary?.dspSettings) {
+                const { compressorNeeded, deEsserNeeded } = globalSummary.dspSettings;
+                if (compressorNeeded && deEsserNeeded) {
+                    polishDesc = 'AI detected high dynamic peaks (Crest Factor) and harsh high-frequencies (ZCR). Applied Compression to balance volume spikes and an EQ/De-Esser to remove harshness.';
+                } else if (compressorNeeded) {
+                    polishDesc = 'AI detected sudden loud peaks (high Crest Factor) in your vocals. Applied a Compressor to tame those spikes and keep the volume perfectly balanced.';
+                } else if (deEsserNeeded) {
+                    polishDesc = 'AI detected harsh "s" sounds and piercing high-frequencies (high Zero Crossing Rate). Applied an EQ/De-Esser to smooth out the brightness.';
+                } else {
+                    polishDesc = 'Your recording had great dynamics and frequency balance! Only a light mastering EQ was applied to add a professional studio shine.';
+                }
+            }
+
             cards.push({
               icon: Sparkles,
               title: 'Studio Polish',
               color: 'text-blue-400',
               bg: 'bg-blue-500/10',
-              desc: 'The AI applied studio-grade Compression and EQ to smooth out harsh spikes and make the audio sound professional.',
+              desc: polishDesc,
               targetTab: 'dsp'
             });
 
             // Vocal FX (Reverb & Delay) Card
+            let fxDesc = 'AI applied dynamic Reverb and Delay to match the tempo and style, giving the vocals a professional 3D space.';
+            if (globalSummary?.dspSettings) {
+                const { reverbMix, delayMix } = globalSummary.dspSettings;
+                fxDesc = `Based on the song's tempo and vocal rhythm, AI applied ${reverbMix.toFixed(0)}% Reverb for 3D space, and ${delayMix.toFixed(0)}% Delay for professional echoes.`;
+            }
+
             cards.push({
               icon: Waves,
               title: 'Vocal Space (FX)',
               color: 'text-purple-400',
               bg: 'bg-purple-500/10',
-              desc: 'AI applied dynamic Reverb and Delay to match the tempo and style, giving the vocals a professional 3D space.',
+              desc: fxDesc,
               targetTab: 'vocal_chain'
             });
 

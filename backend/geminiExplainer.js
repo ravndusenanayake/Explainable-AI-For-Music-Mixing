@@ -19,7 +19,7 @@ Based on the following mixing statistics, track data, and basic automated decisi
 
 Your response MUST be a valid JSON object with exactly this structure:
 {
-  "overallSummary": "A friendly, easy-to-understand summary of the mix. Explain what was generally done to the tracks (e.g., 'Your track had some dynamic vocals, so I smoothed them out and balanced the instruments to give it a professional shine.') Do NOT include robotic stats like 'Analyzed 59 sections'. Make it sound like a real sound engineer talking.",
+  "overallSummary": "A highly detailed, friendly summary of the mix. You MUST specifically explain WHY you applied the Reverb and Delay amounts using the song's Tempo and Vocal Dynamics. Also explain why Compression and EQ were used by mentioning Crest Factor (volume spikes) and ZCR (harsh high frequencies) if applicable. Make it sound like a real sound engineer giving an in-depth explanation of their mixing decisions.",
   "explanations": [
     {
       "action": "Brief title of the action (e.g., 'Dynamic EQ on Lead Vocal')",
