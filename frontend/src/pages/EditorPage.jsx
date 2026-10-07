@@ -28,6 +28,51 @@ import audioEngine from '../utils/realtimeEffects';
 import toast from 'react-hot-toast';
 
 // ==========================================
+// Custom Popup Modal
+// ==========================================
+const CustomPopupModal = ({ isOpen, title, message, type, onConfirm, onCancel }) => {
+  const [inputValue, setInputValue] = useState('');
+  useEffect(() => { if (isOpen) setInputValue(''); }, [isOpen]);
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="bg-[#1e1e1e] border border-[#333] rounded-lg shadow-2xl w-full max-w-md p-6 relative"
+      >
+        <button onClick={onCancel} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+          <X className="w-5 h-5" />
+        </button>
+        <h2 className="text-xl font-bold text-gray-100 mb-2 flex items-center gap-2">{title}</h2>
+        <p className="text-gray-400 text-sm mb-6">{message}</p>
+        
+        {type === 'prompt' && (
+          <input
+            autoFocus
+            type="text"
+            className="w-full bg-[#111] border border-[#333] text-white px-4 py-2.5 rounded focus:outline-none focus:border-cyan-500 transition-colors mb-6"
+            placeholder="Type here..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') onConfirm(inputValue); }}
+          />
+        )}
+        
+        <div className="flex justify-end gap-3">
+          <button onClick={onCancel} className="px-4 py-2 rounded text-sm font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-all">Cancel</button>
+          <button onClick={() => onConfirm(type === 'prompt' ? inputValue : true)} className="px-5 py-2 rounded text-sm font-bold bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-all">
+            {type === 'prompt' ? 'Save' : 'Confirm'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+// ==========================================
 // HELPERS
 // ==========================================
 const formatTimecode = (sec) => {
@@ -682,7 +727,8 @@ const EditorPage = () => {
     mediaPool, addMediaToPool, removeMediaFromPool, tracks, setTracks, updateTrackEffect,
     handleMix, handleDenoise, isLoading, loadingStage, automationData,
     processedAudioUrl, sections, globalSummary, simpleExplanations, explanations,
-    eqSettings, setEqSettings, handleStemSplit, handlePitchCorrection, handleDeTap
+    eqSettings, setEqSettings, handleStemSplit, handlePitchCorrection, handleDeTap,
+    saveProjectToSupabase
   } = useAudioContext();
 
   const navigate = useNavigate();
@@ -1513,6 +1559,7 @@ const EditorPage = () => {
         if (isRecordingRef.current) {
           handleStopRef.current();
         } else {
+          audioEngine.resume();
           setIsPlaying(prev => !prev);
         }
       }
@@ -1606,8 +1653,8 @@ const EditorPage = () => {
     const newInstGain = dbToGain(avgInstDb);
 
     setTracks(prev => prev.map(t => {
-      if (t.type === 'vocal') return { ...t, volume: newVocGain };
-      if (t.type === 'instrumental' || t.name.toLowerCase().includes('drum') || t.name.toLowerCase().includes('beat')) return { ...t, volume: newInstGain };
+      if (t.type === 'vocal' || (t.name || '').toLowerCase().includes('vocal')) return { ...t, volume: newVocGain };
+      if (t.type === 'instrumental' || (t.name || '').toLowerCase().includes('drum') || (t.name || '').toLowerCase().includes('beat')) return { ...t, volume: newInstGain };
       return t;
     }));
 
@@ -1623,13 +1670,35 @@ const EditorPage = () => {
     }
   }, [automationData, setTracks]);
 
+  const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', type: 'confirm', onConfirm: null });
+
+  // Dynamic loading messages to show while mixing
+  const loadingMessages = [
+    "Crafting Your Sound...",
+    "Mixing Your Masterpiece...",
+    "Applying AI Magic...",
+    "Balancing the Frequencies...",
+    "Polishing the Vocals...",
+    "Adding the Final Touch..."
+  ];
+  const [loadingTextIndex, setLoadingTextIndex] = useState(0);
+
+  useEffect(() => {
+    if (isLoading) {
+      const interval = setInterval(() => {
+        setLoadingTextIndex(prev => (prev + 1) % loadingMessages.length);
+      }, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [isLoading]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center -mt-20">
         <div className="text-center">
           <div className="w-24 h-24 border-[4px] border-white/5 border-t-cyan-500 rounded-full animate-spin mx-auto mb-6 shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
-          <h3 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-2">
-            Crafting Your Sound...
+          <h3 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-2 transition-opacity duration-500 ease-in-out">
+            {loadingMessages[loadingTextIndex]}
           </h3>
           <p className="text-gray-400 font-medium">{loadingStage}</p>
         </div>
@@ -1643,12 +1712,37 @@ const EditorPage = () => {
   }, 0);
   const timelineWidth = Math.max(800, (maxClipEndSec + 60) * zoomLevel); // Add 60s padding to end
 
+
+  const handleSaveProject = () => {
+    setPromptModal({
+      isOpen: true,
+      title: 'Save Project',
+      message: 'Enter a name for your new project:',
+      type: 'prompt',
+      onConfirm: async (val) => {
+        setPromptModal(prev => ({ ...prev, isOpen: false }));
+        if (val) {
+          await saveProjectToSupabase(val);
+        }
+      }
+    });
+  };
+
   const menuConfig = {
     'File': [
-      { label: 'New Project', action: () => { if (window.confirm('Start new project?')) { resetContext(); navigate('/'); } } },
-      { label: 'Open Project...', action: () => alert('Open Project: Not implemented (Requires backend)') },
+      { label: 'New Project', action: () => {
+          setPromptModal({
+            isOpen: true,
+            title: 'Start New Project',
+            message: 'Are you sure you want to start a new project? All unsaved progress will be lost.',
+            type: 'confirm',
+            onConfirm: () => { window.location.href = '/'; }
+          });
+        }
+      },
+      { label: 'Open Project...', action: () => setIsProjectsModalOpen(true) },
       { divider: true },
-      { label: 'Save', action: () => alert('Save: Not implemented'), shortcut: 'Ctrl+S' },
+      { label: 'Save Project', action: handleSaveProject, shortcut: 'Ctrl+S' },
       { label: 'Save As...', action: () => alert('Save As: Not implemented') },
       { divider: true },
       { label: 'Import Audio...', action: () => fileInputRef.current?.click(), shortcut: 'Ctrl+I' },
@@ -1723,6 +1817,23 @@ const EditorPage = () => {
               )}
             </div>
           ))}
+        </div>
+        <div className="flex-1" />
+        <div className="flex items-center gap-2 mr-2">
+          <button
+            onClick={handleSaveProject}
+            className="bg-[#1a1a1a] hover:bg-[#222] text-gray-300 text-[10px] font-bold px-3 py-1 rounded-[3px] transition-all flex items-center gap-1.5 border border-[#333] hover:border-cyan-500/50"
+          >
+            <Download className="w-3 h-3 text-cyan-400" />
+            Save Project
+          </button>
+          <button
+            onClick={() => setIsProjectsModalOpen(true)}
+            className="bg-[#1a1a1a] hover:bg-[#222] text-gray-300 text-[10px] font-bold px-3 py-1 rounded-[3px] transition-all flex items-center gap-1.5 border border-[#333] hover:border-cyan-500/50"
+          >
+            <Cloud className="w-3 h-3 text-cyan-400" />
+            My Projects
+          </button>
         </div>
       </div>
 
@@ -1909,7 +2020,7 @@ const EditorPage = () => {
                 )}
 
                 <button
-                  onClick={() => setIsPlaying(!isPlaying)}
+                  onClick={() => { audioEngine.resume(); setIsPlaying(!isPlaying); }}
                   className="w-10 h-7 flex items-center justify-center hover:bg-[#222] rounded-[2px] transition-colors"
                 >
                   {isPlaying ? <Pause className="w-4 h-4 text-cyan-400 fill-current" /> : <Play className="w-4 h-4 text-[#c0c0c0] fill-current" />}
@@ -2016,7 +2127,7 @@ const EditorPage = () => {
                   // Find all vocal clips in the timeline and denoise them
                   const vocalMediaIds = new Set();
                   tracks.forEach(t => {
-                    if (t.type === 'vocal' || t.name?.toLowerCase().includes('vocal')) {
+                    if (t.type === 'vocal' || (t.name || '').toLowerCase().includes('vocal')) {
                       t.clips.forEach(c => {
                         const media = mediaPool.find(m => m.id === c.mediaId);
                         if (media && !media.isDenoise) {
@@ -2073,7 +2184,7 @@ const EditorPage = () => {
                 onClick={async () => {
                   const vocalMediaIds = new Set();
                   tracks.forEach(t => {
-                    if (t.type === 'vocal' || t.name?.toLowerCase().includes('vocal')) {
+                    if (t.type === 'vocal' || (t.name || '').toLowerCase().includes('vocal')) {
                       t.clips.forEach(c => {
                         vocalMediaIds.add(c.mediaId);
                       });
@@ -2102,7 +2213,7 @@ const EditorPage = () => {
                 onClick={async () => {
                   const vocalMediaIds = new Set();
                   tracks.forEach(t => {
-                    if (t.type === 'vocal' || t.name?.toLowerCase().includes('vocal')) {
+                    if (t.type === 'vocal' || (t.name || '').toLowerCase().includes('vocal')) {
                       t.clips.forEach(c => {
                         vocalMediaIds.add(c.mediaId);
                       });
@@ -2131,7 +2242,7 @@ const EditorPage = () => {
                 onClick={async () => {
                   const vocalMediaIds = new Set();
                   tracks.forEach(t => {
-                    if (t.type === 'vocal' || t.name?.toLowerCase().includes('vocal')) {
+                    if (t.type === 'vocal' || (t.name || '').toLowerCase().includes('vocal')) {
                       t.clips.forEach(c => {
                         vocalMediaIds.add(c.mediaId);
                       });
@@ -2159,13 +2270,6 @@ const EditorPage = () => {
                 AUTO-TUNE
               </button>
 
-              <button
-                onClick={() => setIsProjectsModalOpen(true)}
-                className="ml-2 bg-[#1a1a1a] hover:bg-[#222] text-gray-300 text-xs font-bold px-3 py-1.5 rounded-[3px] transition-all flex items-center gap-2 border border-[#333] hover:border-cyan-500/50"
-              >
-                <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-                Cloud Projects
-              </button>
             </div>
           </div>
 
@@ -2725,6 +2829,14 @@ const EditorPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      <CustomPopupModal 
+        isOpen={promptModal.isOpen}
+        title={promptModal.title}
+        message={promptModal.message}
+        type={promptModal.type}
+        onConfirm={promptModal.onConfirm}
+        onCancel={() => setPromptModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

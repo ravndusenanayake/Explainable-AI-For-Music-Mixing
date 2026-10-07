@@ -45,9 +45,18 @@ function calculatePeak(samples, start, end) {
 }
 
 /**
- * Calculate spectral centroid approximation using zero-crossing rate.
- * Higher zero-crossing rate ≈ more high-frequency content.
- * This is a lightweight proxy for full FFT spectral analysis.
+ * XAI Feature Extraction: Zero-Crossing Rate (ZCR)
+ * 
+ * What it measures:
+ * It counts how many times the audio wave crosses the "zero" line (from positive to negative).
+ * 
+ * Why it's used in Explainable AI (XAI):
+ * - High ZCR = Rough, noisy, or high-pitched sounds (like "sss", "shh", or cymbals).
+ * - Low ZCR = Smooth, deep, or bass-heavy sounds.
+ * 
+ * The AI model uses this to quickly understand the "texture" or "roughness" of the sound.
+ * For example, if ZCR is high in a vocal track, the AI can explain to the user: 
+ * "Vocal has too much harshness (high frequencies), so a De-Esser was applied."
  */
 function calculateZeroCrossingRate(samples, start, end) {
   let crossings = 0;

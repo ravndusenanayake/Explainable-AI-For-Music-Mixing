@@ -11,7 +11,7 @@ async function generateMixExplanation(mixContext) {
     }
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `
 You are an expert audio engineer and Explainable AI for a professional music mixing system.
@@ -60,7 +60,7 @@ async function generateChatResponse(message, history, mixContext) {
     }
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         let systemInstruction = `You are a professional audio mixing engineer and an AI assistant for a music mixing web application.
 The user is asking you questions about their mix, audio engineering concepts, or how to fix issues in their track.

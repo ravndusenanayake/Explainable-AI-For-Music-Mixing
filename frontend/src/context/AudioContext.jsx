@@ -256,32 +256,39 @@ export const AudioProvider = ({ children }) => {
       }
     });
 
-    // Forcefully auto-apply "Lankan Vocal" preset to vocal tracks during AI Mix
-    const autoPreparedTracks = tracks.map(t => {
-      if ((t.type === 'vocal' || t.name.toLowerCase().includes('vocal')) && t.effects) {
-        // Auto-apply our custom Lankan preset unconditionally for the magic AI Mix experience
-        const preset = channelStripPresets['Lankan Vocal'];
-        return {
-          ...t,
-          effects: {
-            ...t.effects,
-            eq: structuredClone(preset.eq),
-            deEsser: structuredClone(preset.deEsser),
-            compressor: structuredClone(preset.compressor),
-            saturation: structuredClone(preset.saturation),
-            reverb: structuredClone(preset.reverb),
-            delay: structuredClone(preset.delay),
-          }
-        };
-      }
-      return t;
-    });
+    try {
+      // Forcefully auto-apply "Lankan Vocal" preset to vocal tracks during AI Mix
+      const autoPreparedTracks = tracks.map(t => {
+        if ((t.type === 'vocal' || (t.name || '').toLowerCase().includes('vocal')) && t.effects) {
+          // Auto-apply our custom Lankan preset unconditionally for the magic AI Mix experience
+          const preset = channelStripPresets['Lankan Vocal'];
+          return {
+            ...t,
+            effects: {
+              ...t.effects,
+              eq: preset.eq ? structuredClone(preset.eq) : t.effects.eq,
+              deEsser: preset.deEsser ? structuredClone(preset.deEsser) : t.effects.deEsser,
+              compressor: preset.compressor ? structuredClone(preset.compressor) : t.effects.compressor,
+              saturation: preset.saturation ? structuredClone(preset.saturation) : t.effects.saturation,
+              reverb: preset.reverb ? structuredClone(preset.reverb) : t.effects.reverb,
+              delay: preset.delay ? structuredClone(preset.delay) : t.effects.delay,
+            }
+          };
+        }
+        return t;
+      });
 
-    // Update the UI immediately so the user sees the effects toggled on
-    setTracks(autoPreparedTracks);
+      // Update the UI immediately so the user sees the effects toggled on
+      setTracks(autoPreparedTracks);
 
-    // Append the JSON description of the timeline
-    formData.append('timelineState', JSON.stringify({ tracks: autoPreparedTracks }));
+      // Append the JSON description of the timeline
+      formData.append('timelineState', JSON.stringify({ tracks: autoPreparedTracks }));
+    } catch (e) {
+      console.error("Error preparing tracks for mix:", e);
+      setError("Failed to prepare tracks for AI Mix. Please check track settings.");
+      setIsLoading(false);
+      return false;
+    }
 
     try {
       setLoadingStage('Uploading stems & layout...');
@@ -348,7 +355,7 @@ export const AudioProvider = ({ children }) => {
                 }
               };
             }
-            if (t.type === 'instrumental' || t.name.toLowerCase().includes('drum') || t.name.toLowerCase().includes('beat')) {
+            if (t.type === 'instrumental' || (t.name || '').toLowerCase().includes('drum') || (t.name || '').toLowerCase().includes('beat')) {
               return { ...t, volume: newInstGain };
             }
             return t;
@@ -525,7 +532,7 @@ export const AudioProvider = ({ children }) => {
               };
             }
             // Auto-apply Instrumental Volume
-            if (t.type === 'instrumental' || t.name.toLowerCase().includes('drum') || t.name.toLowerCase().includes('beat')) {
+            if (t.type === 'instrumental' || (t.name || '').toLowerCase().includes('drum') || (t.name || '').toLowerCase().includes('beat')) {
               return { ...t, volume: newInstGain };
             }
             return t;
@@ -721,9 +728,15 @@ export const AudioProvider = ({ children }) => {
         const newFileName = `${baseName} (De-Tapped).wav`;
         const newFile = new File([blob], newFileName, { type: 'audio/wav' });
         
-        // Save explanation for XAI tab
-        if (data.explanations) {
-           setExplanations(prev => [...prev, ...data.explanations]);
+        // Save explanation for XAI tab — convert string explanations to proper objects
+        if (data.explanations && Array.isArray(data.explanations)) {
+          const formattedExplanations = data.explanations.map((exp, i) => {
+            if (typeof exp === 'string') {
+              return { action: `De-Tap Step ${i + 1}`, reason: exp, tip: 'Table taps are impulsive transients that can be separated from harmonic vocals using HPSS.' };
+            }
+            return exp;
+          });
+          setExplanations(prev => [...prev, ...formattedExplanations]);
         }
         
         const newMedia = addMediaToPool(newFile);
@@ -731,7 +744,7 @@ export const AudioProvider = ({ children }) => {
       }
       return data;
     } catch (err) {
-      console.error(err);
+      console.error('[De-Tap Error]', err);
       setError('AI De-Tap failed: ' + (err.response?.data?.error || err.message));
       return null;
     } finally {
@@ -739,6 +752,7 @@ export const AudioProvider = ({ children }) => {
       setLoadingStage('');
     }
   };
+
 
   // ==========================================
   // NEW: Audio Alignment
