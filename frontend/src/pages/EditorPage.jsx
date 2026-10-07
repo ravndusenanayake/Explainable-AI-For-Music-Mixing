@@ -1676,7 +1676,7 @@ const EditorPage = () => {
   const loadingMessages = [
     "Crafting Your Sound...",
     "Mixing Your Masterpiece...",
-    "Applying AI Magic...",
+    "Refining the Mix...",
     "Balancing the Frequencies...",
     "Polishing the Vocals...",
     "Adding the Final Touch..."

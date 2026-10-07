@@ -7,7 +7,7 @@ async function test() {
     const genAI = new GoogleGenerativeAI(key);
     
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
         const result = await model.generateContent("Hello!");
         console.log("Success:", result.response.text());
     } catch (error) {

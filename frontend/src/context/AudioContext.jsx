@@ -302,7 +302,7 @@ export const AudioProvider = ({ children }) => {
           if (percent < 100) {
             setLoadingStage(`Uploading data... ${percent}%`);
           } else {
-            setLoadingStage('AI is analyzing and mixing... This may take a moment.');
+            setLoadingStage('Your song is being analyzed and mixed... This may take a moment.');
           }
         },
       });
@@ -405,7 +405,7 @@ export const AudioProvider = ({ children }) => {
           if (percent < 100) {
             setLoadingStage(`Uploading audio for AI cleaning... ${percent}%`);
           } else {
-            setLoadingStage('🤖 AI is analyzing noise patterns and cleaning... This may take a moment.');
+            setLoadingStage('🤖 Noise patterns are being analyzed and cleaned... This may take a moment.');
           }
         },
       });
@@ -477,7 +477,7 @@ export const AudioProvider = ({ children }) => {
           if (percent < 100) {
             setLoadingStage(`Uploading data... ${percent}%`);
           } else {
-            setLoadingStage('AI is calculating alignment and mixing... This may take a moment.');
+            setLoadingStage('Your tracks are being aligned and mixed... This may take a moment.');
           }
         },
       });
@@ -1042,7 +1042,7 @@ export const AudioProvider = ({ children }) => {
           if (percent < 100) {
             setLoadingStage(`Uploading for stem split... ${percent}%`);
           } else {
-            setLoadingStage('AI is separating stems... This may take a moment.');
+            setLoadingStage('Your song is being separated into stems... This may take a moment.');
           }
         },
       });
