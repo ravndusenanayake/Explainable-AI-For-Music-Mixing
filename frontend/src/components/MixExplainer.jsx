@@ -4,7 +4,7 @@ import {
   BarChart3, Clock, TrendingUp, TrendingDown, Minus,
   ChevronDown, ChevronUp, Mic, Guitar, Info,
   CheckCircle2, AlertTriangle, AlertCircle, Sparkles, Play,
-  SlidersHorizontal, Volume2
+  SlidersHorizontal, Volume2, Waves
 } from 'lucide-react';
 
 const severityConfig = {
@@ -389,6 +389,16 @@ const MixExplainer = ({ sections, currentTime, onSeek, globalSummary, simpleExpl
               bg: 'bg-blue-500/10',
               desc: 'The AI applied studio-grade Compression and EQ to smooth out harsh spikes and make the audio sound professional.',
               targetTab: 'dsp'
+            });
+
+            // Vocal FX (Reverb & Delay) Card
+            cards.push({
+              icon: Waves,
+              title: 'Vocal Space (FX)',
+              color: 'text-purple-400',
+              bg: 'bg-purple-500/10',
+              desc: 'AI applied dynamic Reverb and Delay to match the tempo and style, giving the vocals a professional 3D space.',
+              targetTab: 'vocal_chain'
             });
 
             return cards.map((card, idx) => (
